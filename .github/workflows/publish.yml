@@ -30,6 +30,8 @@ jobs:
     environment: pypi
     permissions:
       id-token: write  # required for PyPI trusted publishing (no API token needed)
+      contents: read   # required so actions/checkout can read this private repo
+                       # (setting any permissions: resets the rest to none)
 
     steps:
       - uses: actions/checkout@v4
