@@ -46,6 +46,16 @@ def _resolve_credential(flag, env_key, user_token, config_key):
     return flag or env_key or user_token or config_key or None
 
 
+# Hosted backend — the default so `pip install gigaflow && gigaflow login` works
+# out of the box. Local dev overrides via --backend / $GIGAFLOW_BACKEND_URL.
+DEFAULT_BACKEND_URL = "https://api.gigaflow.io/api/v1"
+
+
+def _resolve_backend_url(flag, env_val, config_val):
+    """Backend URL precedence: --backend > $GIGAFLOW_BACKEND_URL > saved config > hosted default."""
+    return (flag or env_val or config_val or DEFAULT_BACKEND_URL).rstrip("/")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gigaflow",
@@ -74,7 +84,8 @@ examples:
         default=None,
         help=(
             "GigaFlow API base URL. Overrides $GIGAFLOW_BACKEND_URL and the saved "
-            "config (default: http://localhost:8000/api/v1)"
+            "config (default: https://api.gigaflow.io/api/v1). For local dev, pass "
+            "--backend http://localhost:8000/api/v1 or set $GIGAFLOW_BACKEND_URL."
         ),
     )
     parser.add_argument(
@@ -123,14 +134,10 @@ def main():
             os.environ.setdefault(key, value)
 
     cfg = _config.load()
-    # Backend URL resolution order:
-    #   --backend > $GIGAFLOW_BACKEND_URL > cfg backend_url > localhost default
-    base_url = (
-        args.backend
-        or os.environ.get("GIGAFLOW_BACKEND_URL")
-        or cfg.get("backend_url")
-        or "http://localhost:8000/api/v1"
-    ).rstrip("/")
+    # --backend > $GIGAFLOW_BACKEND_URL > cfg backend_url > hosted default.
+    base_url = _resolve_backend_url(
+        args.backend, os.environ.get("GIGAFLOW_BACKEND_URL"), cfg.get("backend_url")
+    )
 
     # API-key resolution order:
     #   --api-key > $GIGAFLOW_API_KEY > $GIGAFLOW_FLOW_API_KEY > user_token > cfg api_key > None
