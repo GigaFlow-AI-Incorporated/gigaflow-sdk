@@ -60,12 +60,17 @@ def _now() -> int:
     return int(time.time())
 
 
-def _fetch_auth_config(base_url: str) -> tuple[str | None, str | None]:
-    """GET {base_url}/auth/config → (supabase_url, supabase_anon_key)."""
+def _fetch_auth_config(base_url: str) -> tuple[str | None, str | None, str | None]:
+    """GET {base_url}/auth/config → (supabase_url, supabase_anon_key, site_url).
+
+    ``site_url`` is the website origin the CLI opens for the /cli-auth handoff
+    (the SPA and API may be on different hosts); ``None`` when the backend
+    doesn't supply it (older backends / self-host).
+    """
     status, resp = api(base_url, "GET", "/auth/config")
     if status != 200 or not isinstance(resp, dict):
-        return None, None
-    return resp.get("supabase_url"), resp.get("supabase_anon_key")
+        return None, None, None
+    return resp.get("supabase_url"), resp.get("supabase_anon_key"), resp.get("site_url")
 
 
 def _supabase_refresh(supabase_url: str, anon_key: str, refresh_token: str) -> dict | None:
@@ -98,7 +103,7 @@ def access_token(base_url: str) -> str | None:
     supabase_url = creds.get("supabase_url")
     anon_key = creds.get("anon_key")
     if not supabase_url or not anon_key:
-        supabase_url, anon_key = _fetch_auth_config(base_url)
+        supabase_url, anon_key, _ = _fetch_auth_config(base_url)
     if not supabase_url or not anon_key or not creds.get("refresh_token"):
         return creds.get("access_token")  # best effort; may 401 → handled upstream
 
@@ -165,10 +170,17 @@ def run_loopback_login(api_base_url: str, timeout: int = 120) -> dict | None:
         def log_message(self, *args):  # silence default stderr logging
             pass
 
+    # Resolve where to send the user: the backend reports the website origin
+    # (site_url) — the SPA and API can be on different hosts in prod. Fall back
+    # to deriving it from the API URL for older/self-host backends. This fetch
+    # also yields the Supabase config we persist below for later refreshes.
+    supabase_url, anon_key, site_url = _fetch_auth_config(api_base_url)
+    web_base = site_url or _web_base(api_base_url)
+
     server = HTTPServer(("127.0.0.1", 0), Handler)
     server.timeout = timeout
     port = server.server_address[1]
-    url = f"{_web_base(api_base_url)}/cli-auth?port={port}&state={state}"
+    url = f"{web_base}/cli-auth?port={port}&state={state}"
     print(f"  Opening {url}")
     print("  If your browser didn't open, paste that URL into it.")
     webbrowser.open(url)
@@ -178,8 +190,7 @@ def run_loopback_login(api_base_url: str, timeout: int = 120) -> dict | None:
     if not captured.get("access_token"):
         return None
 
-    # Cache the Supabase config for later refreshes.
-    supabase_url, anon_key = _fetch_auth_config(api_base_url)
+    # supabase_url / anon_key were fetched above; persist for later refreshes.
     creds = {**captured, "supabase_url": supabase_url, "anon_key": anon_key}
     save_credentials(creds)
     return creds

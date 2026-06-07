@@ -13,7 +13,7 @@ def _handle_login(args, base_url: str) -> None:
     creds = _auth.run_loopback_login(base_url)
     if not creds:
         _fmt.fail("Login was not completed.")
-        _fmt.info("Sign up or sign in at https://api.gigaflow.io, then run: gigaflow login")
+        _fmt.info("Sign up or sign in at https://gigaflow.io, then run: gigaflow login")
         return
     _fmt.ok(f"Signed in as {creds.get('email', 'your account')}")
 
