@@ -24,7 +24,7 @@ def test_access_token_refreshes_when_expired(monkeypatch, tmp_path):
 
     monkeypatch.setattr(_auth, "_supabase_refresh", fake_refresh)
     monkeypatch.setattr(_auth, "_fetch_auth_config",
-                        lambda base: ("https://p.supabase.co", "anon-key"))
+                        lambda base: ("https://p.supabase.co", "anon-key", None))
 
     token = _auth.access_token("http://backend/api/v1")
     assert token == "fresh"

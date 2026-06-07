@@ -153,7 +153,7 @@ def main():
     if args.api_key is None and getattr(args, "command", None) in _BACKEND_CMDS:
         # To stderr, not stdout: a stdout hint would corrupt machine-readable
         # output such as `gigaflow query --json`.
-        print("  You're not signed in. Run: gigaflow login  (opens api.gigaflow.io)", file=sys.stderr)
+        print("  You're not signed in. Run: gigaflow login  (opens your browser to sign in)", file=sys.stderr)
 
     args.func(args, base_url)
 
