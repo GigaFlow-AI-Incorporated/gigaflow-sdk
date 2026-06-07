@@ -1,5 +1,24 @@
 # CLAUDE.md
 
+## ⚠️ Worktree + branch policy (MANDATORY — read before any edit)
+
+**The single most important rule in this repo.** Before making ANY code change,
+you MUST be working on a NEW git worktree and a NEW branch. Never edit the main
+checkout and never commit to `main`/`master` directly.
+
+At the start of any task that will modify files:
+
+1. **Create an isolated worktree first** — use the `EnterWorktree` tool (preferred),
+   or `git worktree add .claude/worktrees/<name> -b <branch>`.
+2. **Proactively suggest a branch name** derived from the task, kebab-case, with a
+   conventional prefix: `feat/…`, `fix/…`, `chore/…`, `spec/…`, `docs/…`.
+   Propose it up front — don't wait to be asked.
+3. **Do all work in that worktree.** A global `PreToolUse` hook
+   (`~/.claude/hooks/enforce-worktree.sh`) hard-blocks Edit/Write/NotebookEdit in
+   the main checkout. Override only when you truly mean to: `GIGAFLOW_ALLOW_MAIN=1`.
+
+Read-only work (searching, answering questions, inspecting) does not need a worktree.
+
 ## PR Ownership
 
 When explicitly asked to own a PR through merge, keep monitoring review comments and CI. Address all actionable unresolved review threads, push fixes, rerun checks, and merge once CI is green, the branch is mergeable, and there are no unresolved requested changes. Stop and ask for user review before making or merging changes that are broad, risky, security-sensitive, data-destructive, migration-related, or likely to break existing behavior.
