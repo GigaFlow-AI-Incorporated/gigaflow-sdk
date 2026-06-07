@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import time
 import urllib.error
 import urllib.request
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from gigaflow._http import api
 
@@ -112,3 +116,70 @@ def access_token(base_url: str) -> str | None:
     })
     save_credentials(creds)
     return creds["access_token"]
+
+
+# ---------------------------------------------------------------------------
+# Browser loopback login
+# ---------------------------------------------------------------------------
+
+
+def _web_base(api_base_url: str) -> str:
+    """Derive the website origin from the API base URL.
+
+    The website (api.gigaflow.io) and API (api.gigaflow.io/api/v1) share a host,
+    so stripping the /api/v1 suffix yields the site origin.
+    """
+    return api_base_url.replace("/api/v1", "").rstrip("/")
+
+
+def run_loopback_login(api_base_url: str, timeout: int = 120) -> dict | None:
+    """Browser loopback login. Returns the saved credentials dict, or None.
+
+    Binds a one-shot 127.0.0.1 server, opens <site>/cli-auth?port=&state=, and
+    waits for the page to redirect the Supabase session back to /callback. The
+    state nonce is verified; tokens are persisted on success.
+    """
+    state = secrets.token_urlsafe(24)
+    captured: dict = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            params = parse_qs(urlparse(self.path).query)
+            got_state = (params.get("state") or [None])[0]
+            if got_state != state:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"state mismatch")
+                return
+            captured.update({
+                "access_token": (params.get("access_token") or [None])[0],
+                "refresh_token": (params.get("refresh_token") or [None])[0],
+                "expires_at": _now() + int((params.get("expires_in") or ["3600"])[0]),
+                "email": (params.get("email") or [None])[0],
+            })
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<h2>Signed in. You can close this tab and return to your terminal.</h2>")
+
+        def log_message(self, *args):  # silence default stderr logging
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    server.timeout = timeout
+    port = server.server_address[1]
+    url = f"{_web_base(api_base_url)}/cli-auth?port={port}&state={state}"
+    print(f"  Opening {url}")
+    print("  If your browser didn't open, paste that URL into it.")
+    webbrowser.open(url)
+    server.handle_request()  # serves exactly one request (or times out)
+    server.server_close()
+
+    if not captured.get("access_token"):
+        return None
+
+    # Cache the Supabase config for later refreshes.
+    supabase_url, anon_key = _fetch_auth_config(api_base_url)
+    creds = {**captured, "supabase_url": supabase_url, "anon_key": anon_key}
+    save_credentials(creds)
+    return creds
