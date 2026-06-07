@@ -5,6 +5,18 @@ All notable changes to the `gigaflow` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-07
+
+### Added
+
+- Per-user accounts: `gigaflow login` / `logout` / `whoami`. `login` opens a
+  browser sign-in (email + password) and captures the session back to the CLI
+  via a one-shot localhost callback; credentials are stored in
+  `~/.gigaflow/credentials.json` (mode 0600) with automatic token refresh.
+- Logged-in uploads are attributed to your account; the web UI shows only your
+  traces. Credential precedence: explicit `--api-key` > env > logged-in user
+  token > saved static key.
+
 ## [0.2.1] - 2026-06-06
 
 ### Changed
