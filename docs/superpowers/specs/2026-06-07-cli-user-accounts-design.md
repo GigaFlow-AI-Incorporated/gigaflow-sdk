@@ -9,11 +9,13 @@
 Give the CLI a real per-user identity so that:
 
 1. `pip install gigaflow`
-2. First backend-touching run with no credentials tells the user to sign up at
-   https://api.gigaflow.io and run `gigaflow login`.
-3. `gigaflow login` (email + password) stores credentials locally.
-4. Every trace the CLI uploads is **owned by that account**.
-5. Logging into the web UI as the same account shows exactly those traces.
+2. `gigaflow login` opens api.gigaflow.io in the browser.
+3. The user signs up **or** signs in there (email + password); on success the
+   browser hands the session back to the CLI automatically — no password is ever
+   typed in the terminal.
+4. Credentials are stored locally, automatically.
+5. Every trace the CLI uploads is **owned by that account**.
+6. Logging into the web UI as the same account shows exactly those traces.
 
 ## Context: what already exists (do not rebuild)
 
@@ -49,8 +51,8 @@ Give the CLI a real per-user identity so that:
 | Decision | Choice | Why |
 |---|---|---|
 | Identity provider | **Keep Supabase** | Already integrated + tested; password reset, email verify, refresh rotation, future SSO/MFA are config, not code. App data stays in RDS. |
-| Login credential | **Email + password** | Supabase supports it natively; CLI login is a single password-grant HTTP call, no browser, works headless. |
-| Account creation | **Browser signup at api.gigaflow.io**, CLI does login only | Matches Vercel/GitHub/Supabase CLIs; reuses the existing website signup. |
+| Website login credential | **Email + password** | Supabase supports it natively; replaces magic-link OTP in the website UX. |
+| CLI login mechanism | **Browser loopback handoff** | `gigaflow login` opens a hosted `/cli-auth` page; after the user signs in there, the browser POSTs the Supabase session back to a one-shot localhost callback. No password typed in the terminal; signup and signin share one page. (Trade-off: needs the hosted page + local server, and degrades on headless/SSH — see fallback below.) |
 | Ownership granularity | **Project owns traces** | Every trace in a project (supplement, sync, long-lived OTLP token) inherits the project owner. Handles OTLP tokens cleanly (token → project → owner). |
 
 ### Explicitly out of scope (YAGNI)
@@ -85,12 +87,21 @@ create the file with `0600` and never log token values.
 
 ### New commands
 
-- **`gigaflow login`** — prompt for email and a hidden password
-  (`_fmt.prompt_password`), POST to
-  `{supabase_url}/auth/v1/token?grant_type=password` with the anon key as the
-  `apikey` header, store the returned `access_token` / `refresh_token` /
-  `expires_in` (→ `expires_at`) and `email`. On 400 (bad creds), print a clear
-  message pointing to the signup URL.
+- **`gigaflow login`** — browser loopback handoff (no terminal password):
+  1. Bind a one-shot HTTP server on a random `127.0.0.1:<port>` and generate a
+     random `state` nonce.
+  2. Open the browser to the hosted handoff page:
+     `https://api.gigaflow.io/cli-auth?port=<port>&state=<state>`
+     (print the URL too, in case the browser can't open).
+  3. Wait (bounded timeout, e.g. 120 s) for the page to POST the Supabase
+     session — `access_token`, `refresh_token`, `expires_in`, `email`, and the
+     echoed `state` — to `http://127.0.0.1:<port>/callback`.
+  4. Verify the returned `state` matches; reject otherwise. Store the tokens in
+     `credentials.json`, respond to the browser with a "you can close this tab"
+     success page, shut the server down.
+  - `--no-browser` (or browser-open failure) prints the URL for manual paste.
+    On a headless box where no browser is reachable, login can't complete this
+    way — the static `--api-key`/env path remains for that case.
 - **`gigaflow logout`** — delete `credentials.json`.
 - **`gigaflow whoami`** — print the signed-in email (or "not signed in").
 
@@ -100,12 +111,12 @@ A helper (e.g. `_auth.require_login(base_url)`) called by backend-touching
 commands. If no credentials and no static `--api-key`/env override:
 
 ```
-You're not signed in.
-Sign up at https://api.gigaflow.io, then run:  gigaflow login
+You're not signed in. Run:  gigaflow login
+(opens api.gigaflow.io to sign up or sign in)
 ```
 
-…and open the browser to the signup page (`webbrowser.open`). Bypassable by the
-existing static `--api-key` / `GIGAFLOW_API_KEY` env (self-host/dev).
+Bypassable by the existing static `--api-key` / `GIGAFLOW_API_KEY` env
+(self-host/dev / headless).
 
 ### Token handling
 
@@ -183,6 +194,15 @@ from backend settings.
 - Swap `AuthContext` + `SignupDialog` from magic-link OTP to **email + password**
   (`supabase.auth.signUp` / `signInWithPassword`). Add a "forgot password" link
   (Supabase reset email).
+- **New `/cli-auth` route** — the browser handoff page for `gigaflow login`:
+  - Reads `port` + `state` from the query string.
+  - If the user isn't signed in, renders the email+password sign-in / sign-up
+    form (reusing `AuthContext`); after auth it continues automatically.
+  - Once a Supabase session exists, POSTs `{access_token, refresh_token,
+    expires_in, email, state}` to `http://127.0.0.1:<port>/callback`, then shows
+    a "Return to your terminal — you're signed in" confirmation.
+  - Only ever targets `127.0.0.1:<port>` (loopback); echoes back the `state` the
+    CLI generated so the CLI can verify the round-trip.
 - The trace/project list views already carry the user JWT — point them at the
   now-user-scoped read endpoints so users see only their own data.
 
@@ -200,31 +220,48 @@ from backend settings.
 
 ```
 pip install gigaflow
+  → gigaflow login
+      → CLI binds 127.0.0.1:<port>, makes a state nonce, opens browser:
+        https://api.gigaflow.io/cli-auth?port=<port>&state=<state>
+      → user signs up or signs in (email+password) on the page
+      → page POSTs {access_token, refresh_token, expires_in, email, state}
+        to http://127.0.0.1:<port>/callback
+      → CLI verifies state → credentials.json (0600) → "you can close this tab"
   → gigaflow supplement --latest
-      → no credentials → prints signup URL, opens browser
-  → (user signs up at api.gigaflow.io, confirms email)
-  → gigaflow login        → password grant → credentials.json (0600)
-  → gigaflow supplement --latest
-      → GET /auth/config (if needed)
-      → Bearer <access_token>
+      → GET /auth/config (if Supabase url/anon key not cached, for refresh)
+      → Bearer <access_token>  (refreshed via refresh_token when expired)
       → backend get_current_user → user_id
       → project resolved/created with user_id owner
       → Trace.user_id stamped
-  → user opens api.gigaflow.io, logs in (same account)
+  → user opens api.gigaflow.io, signs in (same account)
       → list_traces filtered by owner → sees exactly their traces
 ```
+
+## Security notes (loopback login)
+
+- **Loopback only:** the callback server binds `127.0.0.1` (not `0.0.0.0`) on a
+  random port, accepts a single request, then shuts down.
+- **State nonce:** the CLI generates a random `state`, passes it to the page, and
+  rejects any callback whose `state` doesn't match — defeats CSRF / a stray
+  request hitting the port.
+- **Bounded wait:** the server times out (~120 s) if no callback arrives.
+- **Tokens never transit a third party:** the page talks directly to localhost;
+  tokens are not placed in a redirect URL/query that could land in browser
+  history or server logs.
 
 ## Testing strategy
 
 - **SDK:** unit tests for `_auth` (store/load/refresh, `0600` perms, precedence
-  order), `login`/`logout`/`whoami` command tests with a mocked Supabase token
-  endpoint, and a 401→refresh→retry test in the HTTP path.
+  order); `login` loopback flow with a simulated callback POST (state match +
+  mismatch, timeout); `logout`/`whoami`; a 401→refresh→retry test in the HTTP
+  path.
 - **Backend:** migration test; `create_project` owner stamping; ingest
   (supplement/sync/OTLP) owner inheritance; read-scoping tests (user A cannot see
   user B's projects/traces; service key sees all; dev-mode unscoped); the new
   `auth/config` endpoint.
-- **Website:** AuthContext password sign-up/sign-in unit tests; list views call
-  the user-scoped endpoints.
+- **Website:** AuthContext password sign-up/sign-in unit tests; `/cli-auth` page
+  delivers the session to the loopback callback and echoes `state`; list views
+  call the user-scoped endpoints.
 
 ## Open flags raised at design time (all accepted)
 
