@@ -277,21 +277,9 @@ def test_unreachable_backend_prints_friendly_message(installed_cli, tmp_path):
     assert "Traceback" not in combined
 
 
-def test_localhost_default_when_nothing_set(installed_cli, tmp_path):
-    """With no --backend, no env, no config → defaults to localhost:8000.
-
-    Nothing is listening there in the test environment, so the command fails
-    with the friendly unreachable message that names the default URL — proving
-    the localhost default was the URL actually used.
-    """
-    result = _run_cli(
-        ["projects"],
-        env_extra={"HOME": str(tmp_path)},  # GIGAFLOW_BACKEND_URL is stripped by _run_cli
-    )
-    assert result.returncode == 1, result.stdout + result.stderr
-    combined = result.stdout + result.stderr
-    assert "localhost:8000" in combined, combined
-    assert "Traceback" not in combined
+# Backend-URL resolution (default = hosted, plus precedence) is covered by
+# tests/test_cli_credential_precedence.py::test_backend_* — unit tests on
+# cli._resolve_backend_url, so they don't depend on a host being up/down.
 
 
 def test_config_api_key_used_when_no_flag_or_env(installed_cli, mock_server, tmp_path):

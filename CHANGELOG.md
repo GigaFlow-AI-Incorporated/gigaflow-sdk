@@ -5,6 +5,15 @@ All notable changes to the `gigaflow` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-07
+
+### Changed
+
+- The CLI now defaults to the hosted backend (`https://api.gigaflow.io/api/v1`),
+  so `pip install gigaflow && gigaflow login` works out of the box. For local
+  dev, pass `--backend http://localhost:8000/api/v1` or set
+  `$GIGAFLOW_BACKEND_URL`.
+
 ## [0.3.0] - 2026-06-07
 
 ### Added

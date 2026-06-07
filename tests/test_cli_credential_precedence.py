@@ -32,3 +32,23 @@ def test_falls_back_to_static_when_logged_out():
 
 def test_none_when_nothing_available():
     assert cli._resolve_credential(flag=None, env_key=None, user_token=None, config_key=None) is None
+
+
+def test_backend_defaults_to_hosted_when_nothing_set():
+    assert cli._resolve_backend_url(None, None, None) == "https://api.gigaflow.io/api/v1"
+
+
+def test_backend_flag_wins_over_env_and_config():
+    assert cli._resolve_backend_url("http://flag/api/v1", "http://env/api/v1", "http://cfg/api/v1") == "http://flag/api/v1"
+
+
+def test_backend_env_over_config():
+    assert cli._resolve_backend_url(None, "http://env/api/v1", "http://cfg/api/v1") == "http://env/api/v1"
+
+
+def test_backend_config_over_default():
+    assert cli._resolve_backend_url(None, None, "http://localhost:8000/api/v1") == "http://localhost:8000/api/v1"
+
+
+def test_backend_trailing_slash_stripped():
+    assert cli._resolve_backend_url("https://x/api/v1/", None, None) == "https://x/api/v1"
