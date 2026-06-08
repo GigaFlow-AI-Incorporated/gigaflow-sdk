@@ -214,11 +214,13 @@ def test_classification_summary_all_unclassified():
 
 
 def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
-    """Braintrust path: vendor=2, blank API base, project name, API key, blank GF project, blank transform."""
-    # env-file, backend, gf-api-key, vendor=2, api-base (blank→default),
+    """Braintrust path with the reworked wizard (no backend/api-key prompts)."""
+    env = dict(clean_env)
+    env["GIGAFLOW_API_KEY"] = "test-key"  # dev key → ensure_authenticated skips login
+    # input-method (blank→1), vendor=2, api-base (blank→default),
     # bt-project-name, bt-api-key, gf-project-name (blank→suggested), transform (blank)
-    stdin = b"\n\n\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
-    result = _run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
+    stdin = b"\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
     assert result.returncode == 0, result.stderr.decode()
     out_s = result.stdout.decode()
     assert "Datasource registered" in out_s
@@ -230,10 +232,12 @@ def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
 
 def test_logfire_wizard_end_to_end(installed_cli, mock_server, clean_env):
     """Logfire path: no identifier prompt — one fewer prompt than braintrust."""
-    # env-file, backend, gf-api-key, vendor=3, api-base (blank→default),
-    # read-token, gf-project-name (blank→logfire-project), transform (blank)
-    stdin = b"\n\n\n3\n\nlf-token\n\n\n"
-    result = _run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
+    env = dict(clean_env)
+    env["GIGAFLOW_API_KEY"] = "test-key"
+    # input-method (blank→1), vendor=3, api-base (blank→default),
+    # read-token, gf-project-name (blank→default), transform (blank)
+    stdin = b"\n3\n\nlf-token\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
     assert result.returncode == 0, result.stderr.decode()
     out_s = result.stdout.decode()
     assert "Datasource registered" in out_s
@@ -249,8 +253,9 @@ def test_wizard_warns_when_nothing_classifies(installed_cli, mock_server, clean_
     os.environ["MOCK_ALL_UNCLASSIFIED"] = "1"
     env = dict(clean_env)
     env["MOCK_ALL_UNCLASSIFIED"] = "1"
+    env["GIGAFLOW_API_KEY"] = "test-key"
     try:
-        stdin = b"\n\n\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+        stdin = b"\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
         result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
         assert result.returncode == 0, result.stderr.decode()
         out_s = result.stdout.decode()

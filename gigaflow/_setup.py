@@ -135,6 +135,7 @@ def _pick_vendor():
     print("  Which tracing tool are you using?")
     for i, v in enumerate(VENDORS, 1):
         print(f"    {i}) {v.label}")
+        print(f"         {v.desc}")
     print()
     choice = _fmt.prompt("Choice", "1")
     vendor = vendor_by_choice(choice)
@@ -289,23 +290,23 @@ def _choose_config_source() -> dict:
     return {}
 
 
-def run_wizard(base_url: str) -> dict | None:
+def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     """Interactive multi-vendor setup wizard. Returns the saved config dict on
-    success, None on failure. ``base_url`` is the already-resolved default
-    (--backend / $GIGAFLOW_BACKEND_URL / saved config / localhost); the wizard
-    offers it as the default and persists the chosen URL + optional API key."""
+    success, None on failure.
+
+    ``base_url`` is the already-resolved backend (--backend / $GIGAFLOW_BACKEND_URL
+    / saved config / hosted default). ``api_key`` is the already-resolved bearer
+    credential (from `gigaflow login`, a dev key, or saved config); the wizard no
+    longer prompts for either."""
     _fmt.header("GigaFlow Setup Wizard")
 
-    env_path = _fmt.prompt("Path to gigaflow.env (leave blank to enter values manually)")
-    env = load_env_file(env_path) if env_path else {}
-    if env_path and env:
-        _fmt.ok(f"Loaded env file: {env_path}")
+    # Step 1: how to provide configuration (interactive vs gigaflow.env)
+    env = _choose_config_source()
 
-    # Step 1: backend + key
-    _fmt.section("Step 1: GigaFlow backend")
-    base_url = _fmt.prompt("Backend base URL", env.get("GIGAFLOW_BACKEND_URL", base_url)).rstrip("/")
-    default_key = env.get("GIGAFLOW_API_KEY", _config.get("api_key", "") or "")
-    api_key = _fmt.prompt("GigaFlow API key (blank for none / local dev mode)", default_key) or None
+    # Backend is resolved + authenticated already; just verify reachability.
+    # Surface a notice when a dev override points away from the hosted default.
+    if base_url != _config.DEFAULT_BACKEND_URL:
+        _fmt.info(f"Using backend: {base_url}")
     if not check_backend(base_url, api_key):
         return None
 
@@ -316,14 +317,16 @@ def run_wizard(base_url: str) -> dict | None:
 
     # Step 3: connection (vendor-specific)
     _fmt.section("Step 3: Connection")
+    _fmt.info(f"Where to find these credentials: {vendor.docs_url}")
     conn = vendor.collect(env)
 
-    # Step 4: project (auto-suggest name from the vendor project where present)
+    # Step 4: project
     _fmt.section("Step 4: Project")
     print()
-    print("  GigaFlow groups your traces under a *project* (a container in GigaFlow).")
+    print("  A project is a namespace that groups your traces and evals in GigaFlow.")
+    print("  Use one project per app or environment (e.g. 'checkout-bot', 'prod').")
     print()
-    suggested = conn.get("vendor_project_name") or env.get("GIGAFLOW_PROJECT_NAME") or f"{vendor.key}-project"
+    suggested = conn.get("vendor_project_name") or env.get("GIGAFLOW_PROJECT_NAME") or "default"
     project_name = _fmt.prompt("GigaFlow project name", suggested)
     project_id = create_project(base_url, project_name, api_key)
     if not project_id:
@@ -373,8 +376,6 @@ def run_wizard(base_url: str) -> dict | None:
             _fmt.info("  (point the transform prompt at your own transform.yml)")
 
     config: dict = {"backend_url": base_url, "project_id": project_id, "datasource_id": datasource_id}
-    if api_key:
-        config["api_key"] = api_key
     _config.save(config)
     _fmt.ok(f"Configuration saved to {_config.CONFIG_PATH}")
     return config
