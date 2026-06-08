@@ -25,6 +25,19 @@ def test_poll_for_run_coerces_string_metrics_to_float(monkeypatch):
     C._print_cost_summary(usage)  # must not raise
 
 
+def test_poll_for_run_fast_fails_on_auth_error(monkeypatch):
+    # If auth lapses mid-poll (401/403), fail fast with the auth hint instead
+    # of polling uselessly to the deadline.
+    def fake_api(*a, **k):
+        return 401, {"detail": "unauthorized"}
+    monkeypatch.setattr(C, "api", fake_api)
+    monkeypatch.setattr(C.time, "sleep", lambda *_: None)
+    import pytest
+    with pytest.raises(RuntimeError) as e:
+        C._poll_for_run("http://b", "t1", None, deadline_s=30, interval_s=1)
+    assert "auth" in str(e.value).lower() or "sign" in str(e.value).lower()
+
+
 def test_poll_for_run_returns_metrics_when_run_appears(monkeypatch):
     calls = {"n": 0}
 

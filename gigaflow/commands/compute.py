@@ -47,6 +47,10 @@ def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5
     while time.monotonic() - start < deadline_s:
         status, result = api(base_url, "POST", "/query/", {"sql": sql, "limit": 1},
                              api_key=gigaflow_key)
+        if status in (401, 403):
+            # Auth lapsed mid-poll (e.g. login token expired) — fail fast
+            # instead of polling uselessly to the deadline.
+            raise RuntimeError(auth_error_hint())
         if status == 200:
             cols = result.get("columns", [])
             rows = result.get("rows", [])
