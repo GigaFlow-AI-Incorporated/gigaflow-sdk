@@ -15,7 +15,7 @@ primitives:
   user_input:
     filter:
       field: "span_name"
-      value: ["agent run", "agent", "run"]
+      value: ["agent run", "agent"]
       mode: "prefix"
     mapping:
       content: "inputs"

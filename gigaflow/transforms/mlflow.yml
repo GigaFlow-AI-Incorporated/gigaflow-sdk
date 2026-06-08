@@ -20,7 +20,7 @@ primitives:
   llm_call:
     filter:
       field: "attributes.mlflow.spanType"
-      value: ["LLM", "CHAT_MODEL"]
+      value: "LLM"
       mode: "exact"
     mapping:
       model:             "attributes.gen_ai.request.model"

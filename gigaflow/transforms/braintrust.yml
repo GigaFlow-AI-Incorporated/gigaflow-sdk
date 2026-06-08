@@ -15,6 +15,9 @@ primitives:
   user_input:
     filter:
       field: "span_attributes.type"
+      # "function" is the typical root/agent span; "task" is a higher-level
+      # Braintrust workflow wrapper — included best-effort, may need removal if
+      # your task spans carry no user content.
       value: ["function", "task"]
       mode: "exact"
     mapping:
@@ -40,6 +43,6 @@ primitives:
       value: "tool"
       mode: "exact"
     mapping:
-      tool_name:   "span_attributes.name"
+      tool_name:   "span_name"
       tool_input:  "input"
       tool_output: "output"

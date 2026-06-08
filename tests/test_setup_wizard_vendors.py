@@ -1,4 +1,6 @@
 """Unit tests for the vendor registry and per-vendor wizard branches."""
+import importlib.resources
+
 from gigaflow import _setup
 
 
@@ -27,9 +29,6 @@ def test_each_vendor_declares_a_transform_name():
         assert v.transform_file.endswith(".yml")
 
 
-import importlib.resources
-
-
 def _read_transform(name: str) -> str:
     return importlib.resources.files("gigaflow.transforms").joinpath(name).read_text()
 
@@ -47,6 +46,9 @@ def test_braintrust_transform_classifies_on_span_type():
     assert "span_attributes.type" in text
     for prim in ("llm_call", "tool_invocation", "user_input"):
         assert prim in text
+    assert "completion:" in text          # llm output mapped
+    assert "tool_output:" in text         # tool output mapped
+    assert "content:" in text             # user_input mapped
 
 
 def test_mlflow_transform_classifies_on_spantype():
@@ -55,6 +57,9 @@ def test_mlflow_transform_classifies_on_spantype():
     assert "attributes.mlflow.spanType" in text
     for prim in ("llm_call", "tool_invocation", "user_input"):
         assert prim in text
+    assert "completion:" in text
+    assert "tool_output:" in text
+    assert "content:" in text
 
 
 def test_wb_weave_transform_is_template_with_span_name_filter():
@@ -64,3 +69,6 @@ def test_wb_weave_transform_is_template_with_span_name_filter():
     assert "TEMPLATE" in text
     for prim in ("llm_call", "tool_invocation", "user_input"):
         assert prim in text
+    assert "completion:" in text
+    assert "tool_output:" in text
+    assert "content:" in text
