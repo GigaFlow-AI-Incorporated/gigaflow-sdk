@@ -71,7 +71,7 @@ def _handle_traces(args, base_url: str) -> None:
     print(f"  {len(traces)} trace(s)")
     if traces:
         print("  Get spans:  gigaflow spans <trace_id>")
-        print("  Run Flow:    gigaflow run flow <trace_id>")
+        print('  Run Flow:    gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"')
     print()
 
 
