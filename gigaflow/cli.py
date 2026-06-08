@@ -2,7 +2,7 @@
 gigaflow — CLI entry point.
 
 Commands:
-  gigaflow setup                     Configure GigaFlow with an Arize Phoenix datasource
+  gigaflow setup                     Configure GigaFlow with a tracing datasource (Arize, Braintrust, Logfire, MLflow, W&B Weave)
   gigaflow sync                      Re-sync traces from the configured datasource
   gigaflow ui                        Open the traces dashboard in the browser
   gigaflow traces                    List all traces (auto-syncs first)

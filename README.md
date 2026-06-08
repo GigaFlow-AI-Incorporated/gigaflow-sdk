@@ -77,7 +77,7 @@ gigaflow query "SELECT trace_id, groundedness, total_cost_usd FROM trace_metrics
 - **MLflow** — tracking server URL (+ optional token)
 - **W&B Weave** — trace server URL + `<entity>/<project>` + W&B API key
 
-Each gets a built-in transform; Braintrust/MLflow/Arize/Logfire work out of the box, and the wizard previews how your spans classified so you can spot a mismatch immediately.
+Each gets a built-in transform; Braintrust/MLflow/Arize work out of the box; Logfire works out of the box for pydantic-ai projects; W&B Weave ships a template you tailor to your op names. The wizard previews how your spans classified so you can spot a mismatch immediately.
 
 ## Connect your trace source
 

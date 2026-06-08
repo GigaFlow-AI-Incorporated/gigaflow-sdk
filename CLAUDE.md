@@ -83,7 +83,7 @@ The CLI has **zero external dependencies** — stdlib only (`urllib`, `argparse`
 
 **Transform config resolution** — `gigaflow setup` prompts for a `transform.yml` path. If left blank, the built-in transform for the selected vendor (bundled as package data in `gigaflow/transforms/`) is used.
 
-**Built-in transforms** — one per vendor ships as package data in `gigaflow/transforms/` (`arize_phoenix.yml`, `logfire.yml`, `braintrust.yml`, `mlflow.yml`, `wb_weave.yml`). Arize/Logfire/Braintrust/MLflow classify on a structural span-type field and work generically; `wb_weave.yml` is a TEMPLATE (Weave has no structural span-type) that you'll likely tailor to your op names — the setup preview shows whether it matched.
+**Built-in transforms** — one per vendor ships as package data in `gigaflow/transforms/` (`arize_phoenix.yml`, `logfire.yml`, `braintrust.yml`, `mlflow.yml`, `wb_weave.yml`). Arize/Braintrust/MLflow classify on a structural span-type field; Logfire classifies on pydantic-ai span-name conventions (generic for pydantic-ai instrumentation); `wb_weave.yml` is a TEMPLATE (Weave has no structural span-type) that you'll likely tailor to your op names — the setup preview shows whether it matched.
 
 **Key commands:**
 - `setup` — interactive first-run: pick your tracing vendor (Arize Phoenix / Braintrust / Logfire / MLflow / W&B Weave), enter its connection, name a GigaFlow project (auto-suggested from your vendor project where available), upload a built-in or custom transform, register the datasource, and sync — with a post-sync classification preview that warns if your spans didn't match the transform.
