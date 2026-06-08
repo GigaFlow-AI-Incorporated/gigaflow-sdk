@@ -1,21 +1,31 @@
-"""login / logout / whoami — per-user Supabase identity for the CLI."""
+"""login / logout / whoami — email-only waitlist auth for the CLI."""
+import webbrowser
+
 from gigaflow import _auth, _fmt
+
+_DEFAULT_BOOK_A_DEMO = "https://gigaflow.io/?book-demo"
 
 
 def register(sub) -> None:
-    sub.add_parser("login", help="Sign in via the browser and store credentials").set_defaults(func=_handle_login)
+    sub.add_parser("login", help="Sign in with your waitlist email").set_defaults(func=_handle_login)
     sub.add_parser("logout", help="Clear stored credentials").set_defaults(func=_handle_logout)
     sub.add_parser("whoami", help="Show the signed-in account").set_defaults(func=_handle_whoami)
 
 
 def _handle_login(args, base_url: str) -> None:
     _fmt.header("GigaFlow Login")
-    creds = _auth.run_loopback_login(base_url)
-    if not creds:
-        _fmt.fail("Login was not completed.")
-        _fmt.info("Sign up or sign in at https://gigaflow.io, then run: gigaflow login")
+    email = _fmt.prompt("Waitlist email", required=True)
+    ok, info = _auth.login(base_url, email)
+    if ok:
+        _fmt.ok(f"Signed in as {info.get('email', email)}")
         return
-    _fmt.ok(f"Signed in as {creds.get('email', 'your account')}")
+    if info.get("code") == "not_on_allowlist":
+        url = info.get("book_a_demo_url", _DEFAULT_BOOK_A_DEMO)
+        _fmt.fail("That email isn't on the waitlist yet.")
+        _fmt.info(f"Want to join the waitlist? Book a demo: {url}")
+        webbrowser.open(url)
+        return
+    _fmt.fail(f"Login failed: {info.get('error', 'unknown error')}")
 
 
 def _handle_logout(args, base_url: str) -> None:
