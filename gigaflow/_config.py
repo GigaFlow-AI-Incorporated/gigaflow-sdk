@@ -14,6 +14,10 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".gigaflow" / "config.json"
 
+# Hosted backend — the default so `pip install gigaflow && gigaflow login` works
+# out of the box. Local dev overrides via --backend / $GIGAFLOW_BACKEND_URL.
+DEFAULT_BACKEND_URL = "https://api.gigaflow.io/api/v1"
+
 
 def load() -> dict:
     if not CONFIG_PATH.exists():
