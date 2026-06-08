@@ -25,7 +25,7 @@ _HINT = (
 )
 
 
-class ComputeStillRunning(RuntimeError):
+class ComputeStillRunning(RuntimeError):  # noqa: N818 - "Running", not an error condition
     """Raised when Flow is still computing server-side past the poll deadline."""
 
 
@@ -45,8 +45,8 @@ def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5
             if rows and "run_id" in cols:
                 row = rows[0]
 
-                def col(name):
-                    return row[cols.index(name)] if name in cols else None
+                def col(name, _cols=cols, _row=row):
+                    return _row[_cols.index(name)] if name in _cols else None
                 return (col("groundedness") or 0.0, col("tool_consumption") or 0.0,
                         {"total_cost_usd": col("total_cost_usd")})
         time.sleep(interval_s)
