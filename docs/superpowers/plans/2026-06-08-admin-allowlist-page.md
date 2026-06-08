@@ -826,19 +826,38 @@ export default function AdminAllowlist() {
 
 - [ ] **Step 4: Add the `/admin` route in `src/App.tsx`**
 
-Add the import near the other component imports:
+Add the import near the other component imports (e.g. next to the `DemoPage` import):
 
 ```tsx
 import AdminAllowlist from "./components/AdminAllowlist";
 ```
 
-Add this early-return at the top of the `App()` function body, before the main `return` (same pattern the retired `/cli-auth` route used — no providers needed):
+The current `App()` body is:
 
 ```tsx
+export default function App() {
+  return (
+    <AuthProvider>
+      ...
+    </AuthProvider>
+  );
+}
+```
+
+Add the `/admin` early-return as the **first statement** inside `App()`, before
+the `return (<AuthProvider>…`. The admin page needs none of the providers:
+
+```tsx
+export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/admin") {
     return <AdminAllowlist />;
   }
+
+  return (
+    <AuthProvider>
 ```
+
+(Leave the existing `isDemoRoute()` routing and the provider tree untouched.)
 
 - [ ] **Step 5: Run tests + build**
 
