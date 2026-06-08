@@ -1,86 +1,62 @@
-"""Tests for browser loopback login and auth commands."""
-import threading
-import urllib.request
-
+"""Tests for email-only waitlist login and token storage."""
 import gigaflow._auth as _auth
 
 
-def test_loopback_login_captures_matching_state(monkeypatch, tmp_path):
+def test_login_stores_credentials_on_success(monkeypatch, tmp_path):
     monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
     monkeypatch.setattr(_auth, "_now", lambda: 1000)
-    # Avoid a real network call for Supabase config. No site_url → URL is
-    # derived from the API base by stripping /api/v1 (self-host fallback).
-    monkeypatch.setattr(_auth, "_fetch_auth_config",
-                        lambda base: ("https://p.supabase.co", "anon-key", None))
+    monkeypatch.setattr(
+        _auth,
+        "api",
+        lambda base, method, path, body=None, **kw: (
+            200,
+            {"access_token": "AT", "email": "u@x.com", "expires_in": 3600},
+        ),
+    )
 
-    opened = {}
-
-    def fake_open(url):
-        opened["url"] = url
-        from urllib.parse import urlparse, parse_qs
-        q = parse_qs(urlparse(url).query)
-        port, state = q["port"][0], q["state"][0]
-        cb = (f"http://127.0.0.1:{port}/callback?state={state}"
-              f"&access_token=AT&refresh_token=RT&expires_in=3600&email=u%40x.com")
-        threading.Thread(target=lambda: urllib.request.urlopen(cb, timeout=5)).start()
-
-    monkeypatch.setattr(_auth.webbrowser, "open", fake_open)
-
-    creds = _auth.run_loopback_login("https://api.gigaflow.io/api/v1", timeout=5)
-    assert creds is not None
-    assert creds["access_token"] == "AT"
-    assert creds["refresh_token"] == "RT"
-    assert creds["email"] == "u@x.com"
-    assert creds["expires_at"] == 1000 + 3600
-    assert creds["supabase_url"] == "https://p.supabase.co"
-    # Fallback: no site_url → stripped API base.
-    assert opened["url"].startswith("https://api.gigaflow.io/cli-auth?")
-    assert _auth.load_credentials()["refresh_token"] == "RT"
+    ok, info = _auth.login("https://api.gigaflow.io/api/v1", "u@x.com")
+    assert ok is True
+    assert info["email"] == "u@x.com"
+    saved = _auth.load_credentials()
+    assert saved["access_token"] == "AT"
+    assert saved["email"] == "u@x.com"
+    assert saved["expires_at"] == 1000 + 3600
+    # No Supabase fields persisted anymore.
+    assert "refresh_token" not in saved
 
 
-def test_loopback_login_opens_site_url_from_config(monkeypatch, tmp_path):
-    """When /auth/config reports a site_url, the CLI opens THAT host (prod:
-    SPA and API are different origins)."""
+def test_login_not_on_allowlist_returns_code(monkeypatch, tmp_path):
     monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
-    monkeypatch.setattr(_auth, "_now", lambda: 1000)
-    monkeypatch.setattr(_auth, "_fetch_auth_config",
-                        lambda base: ("https://p.supabase.co", "anon-key", "https://gigaflow.io"))
+    monkeypatch.setattr(
+        _auth,
+        "api",
+        lambda base, method, path, body=None, **kw: (
+            403,
+            {"detail": {"code": "not_on_allowlist",
+                        "book_a_demo_url": "https://gigaflow.io/?book-demo"}},
+        ),
+    )
 
-    opened = {}
-
-    def fake_open(url):
-        opened["url"] = url
-        from urllib.parse import urlparse, parse_qs
-        q = parse_qs(urlparse(url).query)
-        port, state = q["port"][0], q["state"][0]
-        cb = (f"http://127.0.0.1:{port}/callback?state={state}"
-              f"&access_token=AT&refresh_token=RT&expires_in=3600&email=u%40x.com")
-        threading.Thread(target=lambda: urllib.request.urlopen(cb, timeout=5)).start()
-
-    monkeypatch.setattr(_auth.webbrowser, "open", fake_open)
-
-    creds = _auth.run_loopback_login("https://api.gigaflow.io/api/v1", timeout=5)
-    assert creds is not None
-    assert opened["url"].startswith("https://gigaflow.io/cli-auth?")
-
-
-def test_loopback_login_rejects_bad_state(monkeypatch, tmp_path):
-    monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
-    monkeypatch.setattr(_auth, "_fetch_auth_config",
-                        lambda base: ("https://p.supabase.co", "anon-key", None))
-
-    def fake_open(url):
-        from urllib.parse import urlparse, parse_qs
-        q = parse_qs(urlparse(url).query)
-        port = q["port"][0]
-        cb = (f"http://127.0.0.1:{port}/callback?state=WRONG"
-              f"&access_token=AT&refresh_token=RT&expires_in=3600&email=u%40x.com")
-        threading.Thread(target=lambda: urllib.request.urlopen(cb, timeout=5)).start()
-
-    monkeypatch.setattr(_auth.webbrowser, "open", fake_open)
-    creds = _auth.run_loopback_login("https://api.gigaflow.io/api/v1", timeout=5)
-    assert creds is None
+    ok, info = _auth.login("https://api.gigaflow.io/api/v1", "nope@x.com")
+    assert ok is False
+    assert info["code"] == "not_on_allowlist"
+    assert info["book_a_demo_url"] == "https://gigaflow.io/?book-demo"
+    # Nothing stored on failure.
     assert _auth.load_credentials() is None
+
+
+def test_access_token_returns_stored_until_expiry(monkeypatch, tmp_path):
+    monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
+    monkeypatch.setattr(_auth, "_now", lambda: 1000)
+    _auth.save_credentials({"access_token": "AT", "email": "u@x.com", "expires_at": 5000})
+    assert _auth.access_token("https://api.gigaflow.io/api/v1") == "AT"
+
+
+def test_access_token_none_when_expired(monkeypatch, tmp_path):
+    monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
+    monkeypatch.setattr(_auth, "_now", lambda: 9999)
+    _auth.save_credentials({"access_token": "AT", "email": "u@x.com", "expires_at": 5000})
+    assert _auth.access_token("https://api.gigaflow.io/api/v1") is None
 
 
 def test_auth_commands_register():
@@ -89,7 +65,6 @@ def test_auth_commands_register():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
     auth.register(sub)
-    # parse each subcommand and confirm a func is wired
     for name in ("login", "logout", "whoami"):
         ns = parser.parse_args([name])
         assert hasattr(ns, "func")

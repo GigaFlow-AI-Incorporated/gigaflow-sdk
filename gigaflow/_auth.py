@@ -1,25 +1,26 @@
-"""Per-user Supabase credentials for the CLI.
+"""Per-user credentials for the CLI (email-only waitlist auth).
 
-Stored separately from config.json in ~/.gigaflow/credentials.json (mode 0600).
-Holds the Supabase session (access + refresh tokens) obtained via `gigaflow
-login`. Token values are never logged.
+Stored in ~/.gigaflow/credentials.json (mode 0600). Holds the backend session
+JWT obtained via `gigaflow login` (which POSTs an email to /auth/login). Token
+values are never logged.
 """
 from __future__ import annotations
 
 import json
 import os
-import secrets
 import time
-import urllib.error
-import urllib.request
-import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
 from gigaflow._http import api
 
 CREDENTIALS_PATH = Path.home() / ".gigaflow" / "credentials.json"
+
+# Treat a token as expired this many seconds early to avoid edge-of-expiry 401s.
+_EXPIRY_SKEW = 60
+
+
+def _now() -> int:
+    return int(time.time())
 
 
 def load_credentials() -> dict | None:
@@ -48,149 +49,45 @@ def clear_credentials() -> None:
         CREDENTIALS_PATH.unlink()
 
 
-# ---------------------------------------------------------------------------
-# Token refresh
-# ---------------------------------------------------------------------------
-
-# Refresh this many seconds before actual expiry to avoid edge-of-expiry 401s.
-_EXPIRY_SKEW = 60
-
-
-def _now() -> int:
-    return int(time.time())
-
-
-def _fetch_auth_config(base_url: str) -> tuple[str | None, str | None, str | None]:
-    """GET {base_url}/auth/config → (supabase_url, supabase_anon_key, site_url).
-
-    ``site_url`` is the website origin the CLI opens for the /cli-auth handoff
-    (the SPA and API may be on different hosts); ``None`` when the backend
-    doesn't supply it (older backends / self-host).
+def login(base_url: str, email: str) -> tuple[bool, dict]:
+    """POST {email} to /auth/login. On success store the token and return
+    (True, {"email": ...}). On failure return (False, info) where info carries
+    either {"code","book_a_demo_url"} for a not-allowlisted email, or
+    {"error": ...} otherwise.
     """
-    status, resp = api(base_url, "GET", "/auth/config")
-    if status != 200 or not isinstance(resp, dict):
-        return None, None, None
-    return resp.get("supabase_url"), resp.get("supabase_anon_key"), resp.get("site_url")
+    status, payload = api(base_url, "POST", "/auth/login", body={"email": email})
+    if status == 200 and isinstance(payload, dict) and payload.get("access_token"):
+        creds = {
+            "access_token": payload["access_token"],
+            "email": payload.get("email", email),
+            "expires_at": _now() + int(payload.get("expires_in", 86400)),
+        }
+        save_credentials(creds)
+        return True, {"email": creds["email"]}
 
-
-def _supabase_refresh(supabase_url: str, anon_key: str, refresh_token: str) -> dict | None:
-    """POST the Supabase refresh-token grant. Returns the token payload or None."""
-    url = f"{supabase_url}/auth/v1/token?grant_type=refresh_token"
-    body = json.dumps({"refresh_token": refresh_token}).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("apikey", anon_key)
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
-    except (urllib.error.URLError, ValueError):
-        return None
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    if isinstance(detail, dict) and detail.get("code"):
+        return False, detail
+    if status is None:
+        reason = payload.get("error") if isinstance(payload, dict) else None
+        return False, {"error": reason or "backend unreachable"}
+    msg = detail if isinstance(detail, str) else (
+        payload.get("error") if isinstance(payload, dict) else None
+    )
+    return False, {"error": msg or f"login failed (HTTP {status})"}
 
 
 def access_token(base_url: str) -> str | None:
-    """Return a valid Supabase access token for the logged-in user, or None.
+    """Return the stored session token if present and unexpired, else None.
 
-    Refreshes (and persists rotated tokens) when the stored token is within
-    _EXPIRY_SKEW of expiry. On refresh failure, clears credentials and returns
-    None so the caller falls back to the static key / login prompt.
+    No refresh: the backend issues a fresh token on each `gigaflow login`. When
+    the stored token is within _EXPIRY_SKEW of expiry, return None so the caller
+    falls back to the "not signed in — run gigaflow login" path. ``base_url`` is
+    accepted for call-site compatibility (cli.py) and intentionally unused.
     """
     creds = load_credentials()
     if not creds or not creds.get("access_token"):
         return None
-    if _now() < int(creds.get("expires_at", 0)) - _EXPIRY_SKEW:
-        return creds["access_token"]
-
-    supabase_url = creds.get("supabase_url")
-    anon_key = creds.get("anon_key")
-    if not supabase_url or not anon_key:
-        supabase_url, anon_key, _ = _fetch_auth_config(base_url)
-    if not supabase_url or not anon_key or not creds.get("refresh_token"):
-        return creds.get("access_token")  # best effort; may 401 → handled upstream
-
-    payload = _supabase_refresh(supabase_url, anon_key, creds["refresh_token"])
-    if not payload or "access_token" not in payload:
-        clear_credentials()
+    if _now() >= int(creds.get("expires_at", 0)) - _EXPIRY_SKEW:
         return None
-
-    creds.update({
-        "access_token": payload["access_token"],
-        "refresh_token": payload.get("refresh_token", creds["refresh_token"]),
-        "expires_at": _now() + int(payload.get("expires_in", 3600)),
-        "supabase_url": supabase_url,
-        "anon_key": anon_key,
-    })
-    save_credentials(creds)
     return creds["access_token"]
-
-
-# ---------------------------------------------------------------------------
-# Browser loopback login
-# ---------------------------------------------------------------------------
-
-
-def _web_base(api_base_url: str) -> str:
-    """Derive the website origin from the API base URL.
-
-    The website (api.gigaflow.io) and API (api.gigaflow.io/api/v1) share a host,
-    so stripping the /api/v1 suffix yields the site origin.
-    """
-    return api_base_url.replace("/api/v1", "").rstrip("/")
-
-
-def run_loopback_login(api_base_url: str, timeout: int = 120) -> dict | None:
-    """Browser loopback login. Returns the saved credentials dict, or None.
-
-    Binds a one-shot 127.0.0.1 server, opens <site>/cli-auth?port=&state=, and
-    waits for the page to redirect the Supabase session back to /callback. The
-    state nonce is verified; tokens are persisted on success.
-    """
-    state = secrets.token_urlsafe(24)
-    captured: dict = {}
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
-            params = parse_qs(urlparse(self.path).query)
-            got_state = (params.get("state") or [None])[0]
-            if got_state != state:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(b"state mismatch")
-                return
-            captured.update({
-                "access_token": (params.get("access_token") or [None])[0],
-                "refresh_token": (params.get("refresh_token") or [None])[0],
-                "expires_at": _now() + int((params.get("expires_in") or ["3600"])[0]),
-                "email": (params.get("email") or [None])[0],
-            })
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.end_headers()
-            self.wfile.write(b"<h2>Signed in. You can close this tab and return to your terminal.</h2>")
-
-        def log_message(self, *args):  # silence default stderr logging
-            pass
-
-    # Resolve where to send the user: the backend reports the website origin
-    # (site_url) — the SPA and API can be on different hosts in prod. Fall back
-    # to deriving it from the API URL for older/self-host backends. This fetch
-    # also yields the Supabase config we persist below for later refreshes.
-    supabase_url, anon_key, site_url = _fetch_auth_config(api_base_url)
-    web_base = site_url or _web_base(api_base_url)
-
-    server = HTTPServer(("127.0.0.1", 0), Handler)
-    server.timeout = timeout
-    port = server.server_address[1]
-    url = f"{web_base}/cli-auth?port={port}&state={state}"
-    print(f"  Opening {url}")
-    print("  If your browser didn't open, paste that URL into it.")
-    webbrowser.open(url)
-    server.handle_request()  # serves exactly one request (or times out)
-    server.server_close()
-
-    if not captured.get("access_token"):
-        return None
-
-    # supabase_url / anon_key were fetched above; persist for later refreshes.
-    creds = {**captured, "supabase_url": supabase_url, "anon_key": anon_key}
-    save_credentials(creds)
-    return creds
