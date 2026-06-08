@@ -7,7 +7,7 @@ from gigaflow._setup import do_sync, run_wizard
 
 
 def register(sub) -> None:
-    sub.add_parser("setup", help="Configure GigaFlow with an Arize Phoenix datasource").set_defaults(func=_handle_setup)
+    sub.add_parser("setup", help="Configure GigaFlow with a tracing datasource (Arize, Braintrust, Logfire, MLflow, W&B Weave)").set_defaults(func=_handle_setup)
     sub.add_parser("sync",  help="Re-sync traces from the configured datasource").set_defaults(func=_handle_sync)
 
 

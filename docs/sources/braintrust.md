@@ -21,8 +21,10 @@ PID=$(curl -s -X POST "$GIGAFLOW_BACKEND_URL/projects/" \
 echo "project_id=$PID"
 ```
 
-## 2. Provide a transform config (required — none is bundled)
-Braintrust spans don't have a built-in transform, so you must supply one that maps
+## 2. Provide a transform config
+> **Tip:** leave the transform blank in `gigaflow setup` to use the bundled `braintrust.yml`.
+
+If you need to customise, author a transform that maps
 Braintrust's normalized fields to GigaFlow primitives. After the reader normalizes a
 Braintrust event, these dotted keys are available to `mapping`:
 `input`, `output`, `metadata.*`, `metrics.*`, `span_attributes.*`, `name`.
