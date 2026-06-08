@@ -118,3 +118,67 @@ def test_register_datasource_arize_omits_api_key(monkeypatch):
     assert captured["body"]["source_type"] == "arize_phoenix"
     assert "api_key" not in captured["body"]   # None → omitted
     assert captured["body"]["name"] == "arize_phoenix"  # defaults to source_type
+
+
+class _Prompts:
+    """Feed scripted answers to _fmt.prompt / prompt_password in order.
+
+    Mirrors the real _fmt.prompt fallback: an empty answer uses the default,
+    matching what happens when the user presses Enter at a prompt with a default.
+    """
+    def __init__(self, answers):
+        self.answers = list(answers)
+    def prompt(self, label, default="", required=False):
+        val = self.answers.pop(0) if self.answers else ""
+        return val if val else default
+    def prompt_password(self, label):
+        return self.answers.pop(0) if self.answers else ""
+
+
+def _install_prompts(monkeypatch, answers):
+    p = _Prompts(answers)
+    monkeypatch.setattr(_setup._fmt, "prompt", p.prompt)
+    monkeypatch.setattr(_setup._fmt, "prompt_password", p.prompt_password)
+
+
+def test_collect_braintrust(monkeypatch):
+    # answers: api base (blank → default), project name, api key
+    _install_prompts(monkeypatch, ["", "my-bt-proj", "bt-secret"])
+    out = _setup.collect_braintrust({})
+    assert out["connection_url"] == "https://api.braintrust.dev"
+    assert out["source_table"] == "my-bt-proj"
+    assert out["api_key"] == "bt-secret"
+    assert out["vendor_project_name"] == "my-bt-proj"
+
+
+def test_collect_wb_weave(monkeypatch):
+    _install_prompts(monkeypatch, ["", "my-org/rag-eval", "wandb-key"])
+    out = _setup.collect_wb_weave({})
+    assert out["connection_url"] == "https://trace.wandb.ai"
+    assert out["source_table"] == "my-org/rag-eval"
+    assert out["api_key"] == "wandb-key"
+    assert out["vendor_project_name"] == "my-org/rag-eval"
+
+
+def test_collect_logfire_has_no_vendor_project(monkeypatch):
+    _install_prompts(monkeypatch, ["", "logfire-read-token"])
+    out = _setup.collect_logfire({})
+    assert out["connection_url"] == "https://logfire-us.pydantic.dev"
+    assert out["api_key"] == "logfire-read-token"
+    assert out["vendor_project_name"] is None
+
+
+def test_collect_arize_builds_postgres_url(monkeypatch):
+    # host, port, user, password, db, table
+    _install_prompts(monkeypatch, ["host.docker.internal", "5432", "postgres", "pw", "postgres", "spans"])
+    out = _setup.collect_arize_phoenix({})
+    assert out["connection_url"] == "postgresql://postgres:pw@host.docker.internal:5432/postgres"
+    assert out["source_table"] == "spans"
+    assert out["api_key"] is None
+    assert out["vendor_project_name"] is None
+
+
+def test_collectors_are_bound_into_registry():
+    # After this task, no vendor should use the _todo_collect placeholder.
+    for v in _setup.VENDORS:
+        assert v.collect is not _setup._todo_collect

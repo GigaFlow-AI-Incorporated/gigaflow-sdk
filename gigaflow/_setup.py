@@ -44,6 +44,109 @@ def vendor_by_choice(choice: str) -> VendorSpec | None:
     return None
 
 
+# ── Per-vendor connection collectors ─────────────────────────────────────────
+
+def collect_arize_phoenix(env: dict) -> dict:
+    _fmt.section("Connection: Arize Phoenix database")
+    print()
+    print("  Enter the PostgreSQL connection Arize Phoenix writes to.")
+    print("  Tip: if GigaFlow runs in Docker, use 'host.docker.internal'.")
+    print()
+    host = _fmt.prompt("Host", env.get("GIGAFLOW_DB_HOST", "host.docker.internal"))
+    port = _fmt.prompt("Port", env.get("GIGAFLOW_DB_PORT", ""), required=True)
+    user = _fmt.prompt("User", env.get("GIGAFLOW_DB_USER", "postgres"))
+    if env.get("GIGAFLOW_DB_PASSWORD"):
+        password = env["GIGAFLOW_DB_PASSWORD"]
+        _fmt.info("Password: [from env file]")
+    else:
+        password = _fmt.prompt_password("Password")
+    db = _fmt.prompt("Database", env.get("GIGAFLOW_DB_NAME", "postgres"))
+    table = _fmt.prompt("Source table", env.get("GIGAFLOW_DB_TABLE", "spans"))
+    return {
+        "connection_url": f"postgresql://{user}:{password}@{host}:{port}/{db}",
+        "source_table": table,
+        "api_key": None,
+        "vendor_project_name": None,
+    }
+
+
+def _collect_http_vendor(env, *, title, default_url, url_env, key_env,
+                         identifier_label=None, identifier_env=None,
+                         key_required=True):
+    _fmt.section(f"Connection: {title}")
+    url = _fmt.prompt("API base URL", env.get(url_env, default_url)).rstrip("/")
+    identifier = None
+    if identifier_label:
+        identifier = _fmt.prompt(identifier_label, env.get(identifier_env, "")) or None
+    default_key = env.get(key_env, "")
+    key = _fmt.prompt(f"API key{'' if key_required else ' (optional)'}", default_key) or None
+    return {
+        "connection_url": url,
+        "source_table": identifier or "spans",
+        "api_key": key,
+        "vendor_project_name": identifier,
+    }
+
+
+def collect_braintrust(env: dict) -> dict:
+    return _collect_http_vendor(
+        env, title="Braintrust", default_url="https://api.braintrust.dev",
+        url_env="BRAINTRUST_API_URL", key_env="BRAINTRUST_API_KEY",
+        identifier_label="Braintrust project name", identifier_env="BRAINTRUST_PROJECT",
+    )
+
+
+def collect_logfire(env: dict) -> dict:
+    return _collect_http_vendor(
+        env, title="Logfire", default_url="https://logfire-us.pydantic.dev",
+        url_env="LOGFIRE_API_BASE", key_env="LOGFIRE_READ_TOKEN",
+    )
+
+
+def collect_mlflow(env: dict) -> dict:
+    return _collect_http_vendor(
+        env, title="MLflow", default_url="",
+        url_env="MLFLOW_TRACKING_URI", key_env="MLFLOW_TRACKING_TOKEN",
+        key_required=False,
+    )
+
+
+def collect_wb_weave(env: dict) -> dict:
+    return _collect_http_vendor(
+        env, title="W&B Weave", default_url="https://trace.wandb.ai",
+        url_env="WEAVE_TRACE_SERVER", key_env="WANDB_API_KEY",
+        identifier_label="Weave project (<entity>/<project>)", identifier_env="WEAVE_PROJECT",
+    )
+
+
+_COLLECTORS = {
+    "arize_phoenix": collect_arize_phoenix,
+    "braintrust": collect_braintrust,
+    "logfire": collect_logfire,
+    "mlflow": collect_mlflow,
+    "wb_weave": collect_wb_weave,
+}
+
+VENDORS = [
+    VendorSpec(v.key, v.label, v.transform_file, _COLLECTORS[v.key])
+    for v in VENDORS
+]
+
+
+def _pick_vendor():
+    _fmt.section("Step 2: Tracing tool")
+    print()
+    print("  Which tracing tool are you using?")
+    for i, v in enumerate(VENDORS, 1):
+        print(f"    {i}) {v.label}")
+    print()
+    choice = _fmt.prompt("Choice", "1")
+    vendor = vendor_by_choice(choice)
+    if vendor is None:
+        _fmt.fail(f"Unknown choice: {choice!r}")
+    return vendor
+
+
 def _load_default_transform() -> str:
     """Load the built-in Arize Phoenix transform config from the package."""
     ref = importlib.resources.files("gigaflow.transforms").joinpath("arize_phoenix.yml")
