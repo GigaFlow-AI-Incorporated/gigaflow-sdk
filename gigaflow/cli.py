@@ -21,10 +21,12 @@ import importlib.metadata
 import os
 import sys
 
-from gigaflow import _auth, _config, _fmt
+from gigaflow import _auth, _config
 from gigaflow._setup import load_env_file
 from gigaflow.commands import (
     auth as auth_cmd,
+)
+from gigaflow.commands import (
     compute,
     config,
     inspect,
