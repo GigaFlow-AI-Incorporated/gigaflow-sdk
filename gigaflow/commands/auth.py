@@ -3,7 +3,7 @@ import webbrowser
 
 from gigaflow import _auth, _fmt
 
-_DEFAULT_BOOK_A_DEMO = "https://gigaflow.io/?book-demo"
+_DEFAULT_BOOK_A_DEMO = "https://gigaflow.io/demo"
 
 
 def register(sub) -> None:
@@ -14,6 +14,8 @@ def register(sub) -> None:
 
 def _handle_login(args, base_url: str) -> None:
     _fmt.header("GigaFlow Login")
+    _fmt.info("GigaFlow is invite-only. Sign in with the email you booked your demo with.")
+    _fmt.info(f"No access yet? Book a demo: {_DEFAULT_BOOK_A_DEMO}")
     email = _fmt.prompt("Waitlist email", required=True)
     ok, info = _auth.login(base_url, email)
     if ok:
@@ -21,8 +23,9 @@ def _handle_login(args, base_url: str) -> None:
         return
     if info.get("code") == "not_on_allowlist":
         url = info.get("book_a_demo_url", _DEFAULT_BOOK_A_DEMO)
-        _fmt.fail("That email isn't on the waitlist yet.")
-        _fmt.info(f"Want to join the waitlist? Book a demo: {url}")
+        _fmt.fail("That email isn't on the waitlist yet — you need to book a demo to get access.")
+        _fmt.info(f"Book a demo to get in: {url}")
+        _fmt.info("Opening the booking page in your browser...")
         webbrowser.open(url)
         return
     _fmt.fail(f"Login failed: {info.get('error', 'unknown error')}")
