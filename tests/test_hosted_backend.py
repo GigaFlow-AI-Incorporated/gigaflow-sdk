@@ -178,7 +178,7 @@ def test_unreachable_hint_mentions_url_and_env():
 def test_auth_error_hint_is_actionable():
     msg = _http.auth_error_hint()
     assert "GIGAFLOW_API_KEY" in msg
-    assert "setup" in msg
+    assert "gigaflow login" in msg
 
 
 # ── _config api_key round-trip ───────────────────────────────────────────────

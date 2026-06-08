@@ -61,6 +61,7 @@ def test_access_token_none_when_expired(monkeypatch, tmp_path):
 
 def test_auth_commands_register():
     import argparse
+
     from gigaflow.commands import auth
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
