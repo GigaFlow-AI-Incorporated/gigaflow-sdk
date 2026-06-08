@@ -43,7 +43,10 @@ admin token**.
 
 ```
 operator ──▶ gigaflow.io/admin  (token in localStorage)
-                │  Authorization: Bearer <GIGAFLOW_ADMIN_TOKEN>
+                │  fetch /api/admin/*  + Authorization: Bearer <GIGAFLOW_ADMIN_TOKEN>
+                ▼
+   Cloudflare Pages Function  functions/api/admin/[[path]]   (same-origin, no CORS)
+                │  forwards the bearer header to GIGAFLOW_BACKEND_URL
                 ▼
    api.gigaflow.io  /api/v1/admin/allowlist   [require_admin gate]
                 │
@@ -52,6 +55,13 @@ operator ──▶ gigaflow.io/admin  (token in localStorage)
 ```
 
 Two pieces, mirroring the waitlist feature's backend/website split.
+
+**Transport (refinement during planning):** the browser calls a **same-origin
+Cloudflare Pages Function proxy** (`/api/admin/*`), which forwards the operator's
+bearer token to the backend — mirroring `functions/api/analyze.ts`. This matches
+the site's established pattern, keeps the backend origin hidden, and avoids
+relying on CORS. Same token model (operator enters the token; the browser sends
+it as `Authorization: Bearer`; the function forwards it verbatim).
 
 ## Component 1 — Backend (`gigaflow`)
 
@@ -91,16 +101,19 @@ Two pieces, mirroring the waitlist feature's backend/website split.
 ### Page behavior (`AdminAllowlist.tsx`)
 - On load, read the token from `localStorage` (`gigaflow_admin_token`). If absent,
   show a token-entry field. On entry, store it and load the list.
-- **List**: `GET /api/v1/admin/allowlist` with the bearer header → render a table
+  (All calls go to the same-origin proxy `/api/admin/*`, which forwards to the
+  backend's `/api/v1/admin/*`.)
+- **List**: `GET /api/admin/allowlist` with the bearer header → render a table
   of `email` + `added_at`, each row with a **Remove** button.
-- **Add**: an email input + button → `POST /api/v1/admin/allowlist {email}` →
+- **Add**: an email input + button → `POST /api/admin/allowlist {email}` →
   refresh the list. Basic client-side email-format check before sending.
-- **Remove**: `DELETE /api/v1/admin/allowlist/{email}` → refresh the list.
+- **Remove**: `DELETE /api/admin/allowlist/{email}` → refresh the list.
 - **401 handling**: show an "invalid or missing admin token" state and re-prompt
   for the token (clear the stored one).
 - **Forget token** button: clears `localStorage` and returns to the entry state.
-- API base URL: same resolution the site already uses to reach the backend
-  (`api.gigaflow.io` in prod; configurable for local dev).
+- Backend origin: hidden behind the Pages Function proxy (`GIGAFLOW_BACKEND_URL`,
+  already configured for `functions/api/analyze.ts`); the browser only ever hits
+  same-origin `/api/admin/*`.
 
 ## Error handling
 
