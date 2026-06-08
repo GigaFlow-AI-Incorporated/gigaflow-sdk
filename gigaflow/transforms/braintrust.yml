@@ -1,0 +1,48 @@
+# Gigaflow built-in transform for Braintrust (REST API source).
+#
+# Classifies on `span_attributes.type`, which the Braintrust SDK sets via
+# start_span(type=...) and auto-instrumentation populates ("llm"/"tool"/...).
+# This is structural — it does NOT depend on how you named your spans.
+#
+# Braintrust events expose top-level `input`/`output`, a `metadata` bag (where
+# OTel gen_ai.* keys land if your instrumentation emits them), and a `metrics`
+# bag for token counts. If your spans don't set `type`, edit the filters below
+# or supply your own transform.yml.
+version: "1"
+source: "braintrust"
+
+primitives:
+  user_input:
+    filter:
+      field: "span_attributes.type"
+      # "function" is the typical root/agent span; "task" is a higher-level
+      # Braintrust workflow wrapper — included best-effort, may need removal if
+      # your task spans carry no user content.
+      value: ["function", "task"]
+      mode: "exact"
+    mapping:
+      content: "input"
+      message: "input"
+
+  llm_call:
+    filter:
+      field: "span_attributes.type"
+      value: "llm"
+      mode: "exact"
+    mapping:
+      model:             "metadata.gen_ai.request.model"
+      provider:          "metadata.gen_ai.system"
+      input:             "input"
+      completion:        "output"
+      prompt_tokens:     "metrics.prompt_tokens"
+      completion_tokens: "metrics.completion_tokens"
+
+  tool_invocation:
+    filter:
+      field: "span_attributes.type"
+      value: "tool"
+      mode: "exact"
+    mapping:
+      tool_name:   "span_name"
+      tool_input:  "input"
+      tool_output: "output"

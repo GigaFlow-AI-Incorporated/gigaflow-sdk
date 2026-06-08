@@ -1,7 +1,7 @@
 # MLflow
 
 GigaFlow reads MLflow traces over the MLflow REST API (OSS or Databricks).
-**No bundled transform** — supply a custom one (see Transform below).
+A bundled transform ships as `gigaflow/transforms/mlflow.yml` — leave the transform blank in `gigaflow setup` to use it.
 
 ## Prerequisites
 - MLflow server base URL: `http://host:5000` (OSS) or your Databricks workspace URL.

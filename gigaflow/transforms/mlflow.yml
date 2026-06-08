@@ -1,0 +1,41 @@
+# Gigaflow built-in transform for MLflow (REST API source).
+#
+# Classifies on `attributes.mlflow.spanType`, the MLflow SpanType
+# (LLM/TOOL/AGENT/CHAIN/RETRIEVER) exported as a span attribute. Structural —
+# independent of span names. MLflow stores call IO under
+# `mlflow.spanInputs` / `mlflow.spanOutputs`; gen_ai.* attributes appear when
+# your instrumentation sets them.
+version: "1"
+source: "mlflow"
+
+primitives:
+  user_input:
+    filter:
+      field: "attributes.mlflow.spanType"
+      value: "AGENT"
+      mode: "exact"
+    mapping:
+      content: "attributes.mlflow.spanInputs"
+
+  llm_call:
+    filter:
+      field: "attributes.mlflow.spanType"
+      value: "LLM"
+      mode: "exact"
+    mapping:
+      model:             "attributes.gen_ai.request.model"
+      provider:          "attributes.gen_ai.system"
+      input:             "attributes.mlflow.spanInputs"
+      completion:        "attributes.mlflow.spanOutputs"
+      prompt_tokens:     "attributes.gen_ai.usage.input_tokens"
+      completion_tokens: "attributes.gen_ai.usage.output_tokens"
+
+  tool_invocation:
+    filter:
+      field: "attributes.mlflow.spanType"
+      value: ["TOOL", "RETRIEVER"]
+      mode: "exact"
+    mapping:
+      tool_name:   "attributes.gen_ai.tool.name"
+      tool_input:  "attributes.mlflow.spanInputs"
+      tool_output: "attributes.mlflow.spanOutputs"

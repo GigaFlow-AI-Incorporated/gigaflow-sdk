@@ -81,10 +81,12 @@ The CLI has **zero external dependencies** — stdlib only (`urllib`, `argparse`
 
 > **OpenAI key vs. GigaFlow key.** `compute.py` *additionally* sends the user's `OPENAI_API_KEY` in the request **body** (as `{"api_key": ...}`, a confusingly-named field that is the OpenAI key) for the backend's LLM calls. This is separate from the GigaFlow bearer token — do not conflate or remove either.
 
-**Transform config resolution** — `gigaflow setup` prompts for a `transform.yml` path. If left blank, the built-in `gigaflow/transforms/arize_phoenix.yml` (bundled as package data) is used.
+**Transform config resolution** — `gigaflow setup` prompts for a `transform.yml` path. If left blank, the built-in transform for the selected vendor (bundled as package data in `gigaflow/transforms/`) is used.
+
+**Built-in transforms** — one per vendor ships as package data in `gigaflow/transforms/` (`arize_phoenix.yml`, `logfire.yml`, `braintrust.yml`, `mlflow.yml`, `wb_weave.yml`). Arize/Braintrust/MLflow classify on a structural span-type field; Logfire classifies on pydantic-ai span-name conventions (generic for pydantic-ai instrumentation); `wb_weave.yml` is a TEMPLATE (Weave has no structural span-type) that you'll likely tailor to your op names — the setup preview shows whether it matched.
 
 **Key commands:**
-- `setup` — interactive first-run: registers project with backend, uploads transform config, stores datasource connection
+- `setup` — interactive first-run: pick your tracing vendor (Arize Phoenix / Braintrust / Logfire / MLflow / W&B Weave), enter its connection, name a GigaFlow project (auto-suggested from your vendor project where available), upload a built-in or custom transform, register the datasource, and sync — with a post-sync classification preview that warns if your spans didn't match the transform.
 - `sync` — queries source Phoenix Postgres directly, batches raw spans, POSTs to `/api/v1/datasources/{id}/sync`; skips traces already in the DB
 - `query "<SQL>"` — run a SQL SELECT against the `trace_metrics` view; use `--examples` to print suggested patterns; `--format table|csv|json`; `--file` to read SQL from a file
 - `compute "<SQL>"` — batch-compute Flow for traces returned by a SQL query; the query must return `trace_id`; skips traces with existing results unless `--force`; `--concurrency N` (default 3); `--model`; `--k-threshold`; `--cost-breakdown` prints a per-stage (model, tokens, requests, USD) table after each run, in addition to the default one-line `cost: $X.XXXX` summary

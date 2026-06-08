@@ -51,10 +51,8 @@ so the exports are optional on later runs.
 
 ```bash
 # 1. Connect a trace source (creates a project + registers a datasource).
-#    Arize Phoenix is wizard-driven; other vendors are a one-time API call.
-#    → see docs/sources/<vendor>.md
-gigaflow setup                  # Arize Phoenix wizard
-# (or register another source via the API — see the per-vendor docs)
+#    All five vendors are wizard-driven; → see docs/sources/<vendor>.md
+gigaflow setup                  # interactive vendor wizard
 
 # 2. Pull traces into GigaFlow.
 gigaflow sync
@@ -69,6 +67,18 @@ gigaflow inspect <trace_id>
 gigaflow query "SELECT trace_id, groundedness, total_cost_usd FROM trace_metrics ORDER BY total_cost_usd DESC LIMIT 20"
 ```
 
+## Supported tracing backends
+
+`gigaflow setup` walks you through connecting one of:
+
+- **Arize Phoenix** — PostgreSQL connection to the Phoenix spans DB
+- **Braintrust** — API base URL + project name + API key
+- **Logfire** — API base URL + read token
+- **MLflow** — tracking server URL (+ optional token)
+- **W&B Weave** — trace server URL + `<entity>/<project>` + W&B API key
+
+Each gets a built-in transform; Braintrust/MLflow/Arize work out of the box; Logfire works out of the box for pydantic-ai projects; W&B Weave ships a template you tailor to your op names. The wizard previews how your spans classified so you can spot a mismatch immediately.
+
 ## Connect your trace source
 
 Pick your platform — each guide covers the exact datasource config + whether a
@@ -77,20 +87,22 @@ custom transform is needed:
 | Source | Setup | Bundled transform? | Guide |
 |---|---|---|---|
 | **Arize Phoenix** | `gigaflow setup` wizard | ✅ yes | [docs/sources/arize-phoenix.md](docs/sources/arize-phoenix.md) |
-| **Logfire** | API datasource | ✅ yes | [docs/sources/logfire.md](docs/sources/logfire.md) |
-| **Braintrust** | API datasource | ⚠️ custom transform | [docs/sources/braintrust.md](docs/sources/braintrust.md) |
-| **MLflow** | API datasource | ⚠️ custom transform | [docs/sources/mlflow.md](docs/sources/mlflow.md) |
-| **W&B Weave** | API datasource | ⚠️ custom transform | [docs/sources/wb-weave.md](docs/sources/wb-weave.md) |
+| **Logfire** | `gigaflow setup` wizard | ✅ yes | [docs/sources/logfire.md](docs/sources/logfire.md) |
+| **Braintrust** | `gigaflow setup` wizard | ✅ yes | [docs/sources/braintrust.md](docs/sources/braintrust.md) |
+| **MLflow** | `gigaflow setup` wizard | ✅ yes | [docs/sources/mlflow.md](docs/sources/mlflow.md) |
+| **W&B Weave** | `gigaflow setup` wizard | ⚠️ template (see note) | [docs/sources/wb-weave.md](docs/sources/wb-weave.md) |
 | **Direct OTLP** | project token + exporter | n/a (per-project transform) | [docs/sources/otlp.md](docs/sources/otlp.md) |
 
-> Only Arize Phoenix has a wizard today; the others register a datasource with a
-> single `POST /api/v1/datasources/` call (shown in each guide), then `gigaflow sync`.
+> `gigaflow setup` supports all five vendors. W&B Weave ships a template transform
+> (`wb_weave.yml`) rather than a fully generic one — Weave has no structural span-type
+> field, so you may need to tailor filter rules to your op names. The setup wizard
+> previews classification so you can spot a mismatch immediately.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `gigaflow setup` | First-run wizard (Arize Phoenix): backend, project, transform, datasource, sync |
+| `gigaflow setup` | First-run wizard (all five vendors): pick vendor, enter connection, name project, upload transform, sync, preview |
 | `gigaflow sync` | Pull traces from the configured datasource (append-only) |
 | `gigaflow traces` | List traces (auto-syncs first) |
 | `gigaflow spans <trace_id>` | List spans for a trace |
@@ -103,9 +115,10 @@ custom transform is needed:
 
 A **transform config** (YAML) maps a source's raw spans to GigaFlow primitives
 (`llm_call`, `tool_invocation`, `user_input`, `transform`) via `filter` (classify)
-and `mapping` (extract fields). Bundled configs ship for Arize Phoenix and Logfire
-(`gigaflow/transforms/`); other sources need a custom one (each vendor guide explains
-the shape). Re-upload to an existing project without re-running setup:
+and `mapping` (extract fields). Bundled configs ship for all five vendors
+(`gigaflow/transforms/`); W&B Weave's is a template you may need to tailor to your
+op names. Leave the transform prompt blank in `gigaflow setup` to use the bundled
+one. Re-upload to an existing project without re-running setup:
 
 ```bash
 curl -X PUT "$GIGAFLOW_BACKEND_URL/projects/<project_id>/transform" \

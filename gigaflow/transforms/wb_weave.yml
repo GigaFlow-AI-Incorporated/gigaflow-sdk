@@ -1,0 +1,44 @@
+# Gigaflow TEMPLATE transform for W&B Weave (REST API source).
+#
+# Weave has NO structural span-type field — a span's identity is its op/function
+# name. This template classifies on span_name with common conventions; you will
+# likely need to edit the `value` lists below to match YOUR op names. The setup
+# wizard previews classification so you can see whether these defaults matched.
+#
+# Weave calls expose top-level `inputs` / `output`; token usage (if present)
+# lives under `summary.usage.*`; gen_ai.* attributes appear only if your
+# instrumentation set them.
+version: "1"
+source: "wb_weave"
+
+primitives:
+  user_input:
+    filter:
+      field: "span_name"
+      value: ["agent run", "agent"]
+      mode: "prefix"
+    mapping:
+      content: "inputs"
+      message: "inputs"
+
+  llm_call:
+    filter:
+      field: "span_name"
+      value: ["chat", "llm", "completion", "openai", "anthropic"]
+      mode: "prefix"
+    mapping:
+      model:             "attributes.gen_ai.request.model"
+      input:             "inputs"
+      completion:        "output"
+      prompt_tokens:     "summary.usage.prompt_tokens"
+      completion_tokens: "summary.usage.completion_tokens"
+
+  tool_invocation:
+    filter:
+      field: "span_name"
+      value: ["tool", "running tool"]
+      mode: "prefix"
+    mapping:
+      tool_name:   "attributes.gen_ai.tool.name"
+      tool_input:  "inputs"
+      tool_output: "output"

@@ -1,7 +1,6 @@
 # Weights & Biases — Weave
 
-GigaFlow reads Weave calls via the W&B trace-server API. **No bundled transform** —
-supply a custom one.
+GigaFlow reads Weave calls via the W&B trace-server API. A template transform ships as `gigaflow/transforms/wb_weave.yml` — leave the transform blank in `gigaflow setup` to use it, but you'll likely need to tailor filter rules to your op names (Weave has no structural span-type field).
 
 ## Prerequisites
 - `WANDB_API_KEY` (wandb.ai → Settings → API keys) — sent as HTTP Basic `api:<key>`.

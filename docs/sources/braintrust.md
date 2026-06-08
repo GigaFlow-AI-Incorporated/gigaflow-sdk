@@ -1,7 +1,6 @@
 # Braintrust
 
-GigaFlow pulls Braintrust **project logs** via the Braintrust REST API. There's no
-wizard for Braintrust yet — register the datasource with one API call, then sync.
+GigaFlow pulls Braintrust **project logs** via the Braintrust REST API. `gigaflow setup` now walks you through Braintrust interactively (recommended). The manual API-call flow below remains available for scripting.
 
 ## Prerequisites
 - A **Braintrust API key** (Settings → API keys).
@@ -21,8 +20,10 @@ PID=$(curl -s -X POST "$GIGAFLOW_BACKEND_URL/projects/" \
 echo "project_id=$PID"
 ```
 
-## 2. Provide a transform config (required — none is bundled)
-Braintrust spans don't have a built-in transform, so you must supply one that maps
+## 2. Provide a transform config
+> **Tip:** leave the transform blank in `gigaflow setup` to use the bundled `braintrust.yml`.
+
+If you need to customise, author a transform that maps
 Braintrust's normalized fields to GigaFlow primitives. After the reader normalizes a
 Braintrust event, these dotted keys are available to `mapping`:
 `input`, `output`, `metadata.*`, `metrics.*`, `span_attributes.*`, `name`.
