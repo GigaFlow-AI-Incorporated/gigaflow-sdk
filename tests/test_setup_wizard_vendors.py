@@ -185,9 +185,8 @@ def test_collect_arize_builds_postgres_url(monkeypatch):
 
 
 def test_collectors_are_bound_into_registry():
-    # After this task, no vendor should use the _todo_collect placeholder.
     for v in _setup.VENDORS:
-        assert v.collect is not _setup._todo_collect
+        assert callable(v.collect)
 
 
 def test_classification_summary_counts_primitives():
@@ -219,6 +218,21 @@ def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
     # env-file, backend, gf-api-key, vendor=2, api-base (blank→default),
     # bt-project-name, bt-api-key, gf-project-name (blank→suggested), transform (blank)
     stdin = b"\n\n\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
+    assert result.returncode == 0, result.stderr.decode()
+    out_s = result.stdout.decode()
+    assert "Datasource registered" in out_s
+    assert "Configuration saved" in out_s
+    cfg = json.loads((Path(clean_env["HOME"]) / ".gigaflow" / "config.json").read_text())
+    assert cfg["project_id"] == MOCK_PROJECT_ID
+    assert cfg["datasource_id"] == MOCK_DATASOURCE_ID
+
+
+def test_logfire_wizard_end_to_end(installed_cli, mock_server, clean_env):
+    """Logfire path: no identifier prompt — one fewer prompt than braintrust."""
+    # env-file, backend, gf-api-key, vendor=3, api-base (blank→default),
+    # read-token, gf-project-name (blank→logfire-project), transform (blank)
+    stdin = b"\n\n\n3\n\nlf-token\n\n\n"
     result = _run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
     assert result.returncode == 0, result.stderr.decode()
     out_s = result.stdout.decode()

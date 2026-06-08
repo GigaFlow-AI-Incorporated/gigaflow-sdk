@@ -19,19 +19,6 @@ class VendorSpec:
     collect: Callable[[dict], dict]
 
 
-def _todo_collect(env: dict) -> dict:  # replaced in a later task
-    raise NotImplementedError
-
-
-VENDORS: list[VendorSpec] = [
-    VendorSpec("arize_phoenix", "Arize Phoenix   (Postgres)",   "arize_phoenix.yml", _todo_collect),
-    VendorSpec("braintrust",    "Braintrust      (REST API)",   "braintrust.yml",    _todo_collect),
-    VendorSpec("logfire",       "Logfire         (REST API)",   "logfire.yml",       _todo_collect),
-    VendorSpec("mlflow",        "MLflow          (REST API)",   "mlflow.yml",        _todo_collect),
-    VendorSpec("wb_weave",      "W&B Weave       (REST API)",   "wb_weave.yml",      _todo_collect),
-]
-
-
 def vendor_by_choice(choice: str) -> VendorSpec | None:
     """Map a 1-indexed menu string to a VendorSpec. Blank → Arize Phoenix."""
     choice = (choice or "").strip()
@@ -74,7 +61,7 @@ def _collect_http_vendor(env, *, title, default_url, url_env, key_env,
                          identifier_label=None, identifier_env=None,
                          key_required=True):
     _fmt.section(f"Connection: {title}")
-    url = _fmt.prompt("API base URL", env.get(url_env, default_url)).rstrip("/")
+    url = _fmt.prompt("API base URL", env.get(url_env, default_url), required=True).rstrip("/")
     identifier = None
     if identifier_label:
         identifier = _fmt.prompt(identifier_label, env.get(identifier_env, "")) or None
@@ -119,17 +106,12 @@ def collect_wb_weave(env: dict) -> dict:
     )
 
 
-_COLLECTORS = {
-    "arize_phoenix": collect_arize_phoenix,
-    "braintrust": collect_braintrust,
-    "logfire": collect_logfire,
-    "mlflow": collect_mlflow,
-    "wb_weave": collect_wb_weave,
-}
-
-VENDORS = [
-    VendorSpec(v.key, v.label, v.transform_file, _COLLECTORS[v.key])
-    for v in VENDORS
+VENDORS: list[VendorSpec] = [
+    VendorSpec("arize_phoenix", "Arize Phoenix   (Postgres)", "arize_phoenix.yml", collect_arize_phoenix),
+    VendorSpec("braintrust",    "Braintrust      (REST API)", "braintrust.yml",    collect_braintrust),
+    VendorSpec("logfire",       "Logfire         (REST API)", "logfire.yml",       collect_logfire),
+    VendorSpec("mlflow",        "MLflow          (REST API)", "mlflow.yml",        collect_mlflow),
+    VendorSpec("wb_weave",      "W&B Weave       (REST API)", "wb_weave.yml",      collect_wb_weave),
 ]
 
 
@@ -410,17 +392,3 @@ def _preview_and_confirm(base_url, project_id, api_key) -> bool:
         _fmt.info("Span names seen: " + ", ".join(observed))
         return False
     return True
-
-
-def _show_span_preview(base_url: str, project_id: str, api_key: str | None = None):
-    spans = _fetch_sample_spans(base_url, project_id, api_key)
-    if not spans:
-        return
-    counts, unclassified = _classification_summary(spans)
-    classified = sum(counts.values())
-    _fmt.info(f"Sample trace — {classified} classified, {unclassified} unclassified")
-    for ptype in ["llm_call", "tool_invocation", "user_input"]:
-        match = next((s for s in spans if s.get("primitive_type") == ptype), None)
-        if match:
-            pd = match.get("primitive_data") or {}
-            _fmt.info(f"  {ptype}: {pd}")
