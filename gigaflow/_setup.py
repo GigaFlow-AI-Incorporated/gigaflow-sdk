@@ -128,13 +128,18 @@ def upload_transform(base_url: str, project_id: str, yaml_content: str = ARIZE_T
     return True
 
 
-def register_datasource(base_url: str, project_id: str, connection_url: str, source_table: str, api_key: str | None = None) -> str | None:
-    status, resp = api(base_url, "POST", "/datasources/", {
+def register_datasource(base_url: str, project_id: str, connection_url: str, source_table: str,
+                        api_key: str | None = None, source_type: str = "arize_phoenix", name: str | None = None) -> str | None:
+    payload = {
         "project_id": project_id,
-        "name": "arize-phoenix",
+        "name": name or source_type,
         "connection_url": connection_url,
         "source_table": source_table,
-    }, api_key=_resolve_key(api_key))
+        "source_type": source_type,
+    }
+    if api_key:
+        payload["api_key"] = api_key
+    status, resp = api(base_url, "POST", "/datasources/", payload, api_key=_resolve_key(api_key))
     if status != 200:
         _fmt.fail(f"Failed to register datasource ({status}): {resp}")
         return None

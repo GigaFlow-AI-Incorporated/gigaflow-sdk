@@ -2,6 +2,7 @@
 import importlib.resources
 
 from gigaflow import _setup
+from gigaflow import _setup as setup_mod
 
 
 def test_vendor_registry_has_all_five():
@@ -72,3 +73,48 @@ def test_wb_weave_transform_is_template_with_span_name_filter():
     assert "completion:" in text
     assert "tool_output:" in text
     assert "content:" in text
+
+
+def test_register_datasource_sends_source_type_and_api_key(monkeypatch):
+    captured = {}
+
+    def fake_api(base_url, method, path, body=None, **kw):
+        captured["path"] = path
+        captured["body"] = body
+        captured["api_key"] = kw.get("api_key")
+        return 200, {"datasource_id": "ds-1"}
+
+    monkeypatch.setattr(setup_mod, "api", fake_api)
+    ds = setup_mod.register_datasource(
+        "http://x/api/v1", "proj-1",
+        connection_url="https://api.braintrust.dev",
+        source_table="my-proj",
+        api_key="bt-key",
+        source_type="braintrust",
+        name="braintrust",
+    )
+    assert ds == "ds-1"
+    assert captured["body"]["source_type"] == "braintrust"
+    assert captured["body"]["api_key"] == "bt-key"
+    assert captured["body"]["source_table"] == "my-proj"
+    assert captured["body"]["name"] == "braintrust"
+
+
+def test_register_datasource_arize_omits_api_key(monkeypatch):
+    captured = {}
+
+    def fake_api(base_url, method, path, body=None, **kw):
+        captured["body"] = body
+        return 200, {"datasource_id": "ds-2"}
+
+    monkeypatch.setattr(setup_mod, "api", fake_api)
+    setup_mod.register_datasource(
+        "http://x/api/v1", "proj-1",
+        connection_url="postgresql://u:p@h:5432/db",
+        source_table="spans",
+        api_key=None,
+        source_type="arize_phoenix",
+    )
+    assert captured["body"]["source_type"] == "arize_phoenix"
+    assert "api_key" not in captured["body"]   # None → omitted
+    assert captured["body"]["name"] == "arize_phoenix"  # defaults to source_type

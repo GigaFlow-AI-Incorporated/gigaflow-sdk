@@ -54,6 +54,8 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
     last_supplement_body: bytes = b""
     last_supplement_headers: dict = {}
     last_supplement_query: str = ""
+    last_datasource_source_type = None
+    last_datasource_api_key = None
 
     def log_message(self, *args):  # silence request logs during tests
         pass
@@ -180,6 +182,12 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
             self._ok({"project_id": MOCK_PROJECT_ID})
 
         elif p == "/api/v1/datasources/":
+            try:
+                body = json.loads(raw) if raw else {}
+            except Exception:
+                body = {}
+            _MockAPIHandler.last_datasource_source_type = body.get("source_type")
+            _MockAPIHandler.last_datasource_api_key = body.get("api_key")
             self._ok({"datasource_id": MOCK_DATASOURCE_ID})
 
         elif p == f"/api/v1/datasources/{MOCK_DATASOURCE_ID}/sync":
