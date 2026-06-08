@@ -8,6 +8,7 @@ Usage:
 
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from gigaflow import _fmt
@@ -17,6 +18,37 @@ _HINT = (
     "Hint: query the `trace_metrics` view — it has one row per trace with all Flow columns.\n"
     "      Run `gigaflow query --examples` to see example queries."
 )
+
+
+class ComputeStillRunning(RuntimeError):
+    """Raised when Flow is still computing server-side past the poll deadline."""
+
+
+def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5):
+    """Poll trace_metrics until this trace has a run_id, or raise ComputeStillRunning."""
+    sql = (
+        "SELECT run_id, groundedness, tool_consumption, total_cost_usd "
+        f"FROM trace_metrics WHERE trace_id = '{trace_id}' AND run_id IS NOT NULL"
+    )
+    start = time.monotonic()
+    while time.monotonic() - start < deadline_s:
+        status, result = api(base_url, "POST", "/query/", {"sql": sql, "limit": 1},
+                             api_key=gigaflow_key)
+        if status == 200:
+            cols = result.get("columns", [])
+            rows = result.get("rows", [])
+            if rows and "run_id" in cols:
+                row = rows[0]
+
+                def col(name):
+                    return row[cols.index(name)] if name in cols else None
+                return (col("groundedness") or 0.0, col("tool_consumption") or 0.0,
+                        {"total_cost_usd": col("total_cost_usd")})
+        time.sleep(interval_s)
+    raise ComputeStillRunning(
+        f"Flow for {trace_id[:8]}… is still computing on the server after "
+        f"{deadline_s}s. Re-run `gigaflow compute` later to pick up the result."
+    )
 
 
 def register(sub) -> None:
