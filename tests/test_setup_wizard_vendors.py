@@ -25,3 +25,42 @@ def test_vendor_lookup_invalid_returns_none():
 def test_each_vendor_declares_a_transform_name():
     for v in _setup.VENDORS:
         assert v.transform_file.endswith(".yml")
+
+
+import importlib.resources
+
+
+def _read_transform(name: str) -> str:
+    return importlib.resources.files("gigaflow.transforms").joinpath(name).read_text()
+
+
+def test_all_registry_transforms_exist_as_package_data():
+    # The registry must never reference a transform file that isn't shipped.
+    for v in _setup.VENDORS:
+        ref = importlib.resources.files("gigaflow.transforms").joinpath(v.transform_file)
+        assert ref.is_file(), f"missing bundled transform: {v.transform_file}"
+
+
+def test_braintrust_transform_classifies_on_span_type():
+    text = _read_transform("braintrust.yml")
+    assert "source:" in text and "braintrust" in text
+    assert "span_attributes.type" in text
+    for prim in ("llm_call", "tool_invocation", "user_input"):
+        assert prim in text
+
+
+def test_mlflow_transform_classifies_on_spantype():
+    text = _read_transform("mlflow.yml")
+    assert "mlflow" in text
+    assert "attributes.mlflow.spanType" in text
+    for prim in ("llm_call", "tool_invocation", "user_input"):
+        assert prim in text
+
+
+def test_wb_weave_transform_is_template_with_span_name_filter():
+    text = _read_transform("wb_weave.yml")
+    assert "wb_weave" in text
+    assert "span_name" in text
+    assert "TEMPLATE" in text
+    for prim in ("llm_call", "tool_invocation", "user_input"):
+        assert prim in text
