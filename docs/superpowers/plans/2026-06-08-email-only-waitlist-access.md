@@ -105,10 +105,13 @@ git add backend/app/models/allowlist.py backend/tests/models/test_allowlist_mode
 git commit -m "feat(backend): add AllowlistedEmail model"
 ```
 
-### Task 2: Migration `0005` — allowlist table + nullable password_hash
+### Task 2: Migration `0006` — allowlist table + nullable password_hash
+
+> `origin/main` already has `0005_flow_run_tokenomics` (revision `0005`,
+> down_revision `0004`), so this migration is `0006` chained onto `0005`.
 
 **Files:**
-- Create: `backend/alembic/versions/0005_allowlist_and_nullable_password.py`
+- Create: `backend/alembic/versions/0006_allowlist_and_nullable_password.py`
 - Modify: `backend/app/models/user.py:38` (make `password_hash` nullable)
 
 > No unit test for the migration itself (matches the repo — `0003`/`0004` have
@@ -133,7 +136,7 @@ to:
 - [ ] **Step 2: Write the migration**
 
 ```python
-# backend/alembic/versions/0005_allowlist_and_nullable_password.py
+# backend/alembic/versions/0006_allowlist_and_nullable_password.py
 """allowlisted_emails table + make users.password_hash nullable
 
 Email-only waitlist access: ``allowlisted_emails`` is the manual access gate
@@ -146,8 +149,8 @@ from sqlalchemy.dialects.postgresql import CITEXT
 
 from alembic import op
 
-revision = "0005"
-down_revision = "0004"
+revision = "0006"
+down_revision = "0005"
 branch_labels = None
 depends_on = None
 
@@ -175,14 +178,14 @@ def downgrade() -> None:
 
 - [ ] **Step 3: Verify the migration module imports**
 
-Run: `cd backend && uv run python -c "import importlib.util, glob; f=glob.glob('alembic/versions/0005_*.py')[0]; s=importlib.util.spec_from_file_location('m', f); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.revision, m.down_revision)"`
-Expected: prints `0005 0004`
+Run: `cd backend && uv run python -c "import importlib.util, glob; f=glob.glob('alembic/versions/0006_*.py')[0]; s=importlib.util.spec_from_file_location('m', f); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.revision, m.down_revision)"`
+Expected: prints `0006 0005`
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add backend/alembic/versions/0005_allowlist_and_nullable_password.py backend/app/models/user.py
-git commit -m "feat(backend): migration 0005 — allowlist table + nullable password_hash"
+git add backend/alembic/versions/0006_allowlist_and_nullable_password.py backend/app/models/user.py
+git commit -m "feat(backend): migration 0006 — allowlist table + nullable password_hash"
 ```
 
 ### Task 3: Rework `POST /auth/login` to email-only allowlist
