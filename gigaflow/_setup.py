@@ -272,6 +272,10 @@ def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tu
 
 
 def run_wizard(base_url: str) -> dict | None:
+    """Interactive multi-vendor setup wizard. Returns the saved config dict on
+    success, None on failure. ``base_url`` is the already-resolved default
+    (--backend / $GIGAFLOW_BACKEND_URL / saved config / localhost); the wizard
+    offers it as the default and persists the chosen URL + optional API key."""
     _fmt.header("GigaFlow Setup Wizard")
 
     env_path = _fmt.prompt("Path to gigaflow.env (leave blank to enter values manually)")
@@ -293,6 +297,7 @@ def run_wizard(base_url: str) -> dict | None:
         return None
 
     # Step 3: connection (vendor-specific)
+    _fmt.section("Step 3: Connection")
     conn = vendor.collect(env)
 
     # Step 4: project (auto-suggest name from the vendor project where present)
@@ -307,6 +312,7 @@ def run_wizard(base_url: str) -> dict | None:
         return None
 
     # Step 5: transform (vendor built-in by default)
+    _fmt.section("Step 5: Transform")
     label = vendor.label.split("(")[0].strip()
     transform_path = _fmt.prompt(
         f"Path to transform.yml (leave blank for built-in {label} config)",

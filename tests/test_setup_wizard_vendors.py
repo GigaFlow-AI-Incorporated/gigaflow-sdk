@@ -1,5 +1,11 @@
 """Unit tests for the vendor registry and per-vendor wizard branches."""
 import importlib.resources
+import json
+import os
+from pathlib import Path
+
+from _constants import MOCK_DATASOURCE_ID, MOCK_PROJECT_ID  # noqa: E402
+from test_commands import run as _run  # noqa: E402
 
 from gigaflow import _setup
 from gigaflow import _setup as setup_mod
@@ -203,3 +209,39 @@ def test_classification_summary_all_unclassified():
     counts, unclassified = _setup._classification_summary(spans)
     assert sum(counts.values()) == 0
     assert unclassified == 2
+
+
+# ── per-vendor e2e tests (subprocess against mock server) ────────────────────
+
+
+def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
+    """Braintrust path: vendor=2, blank API base, project name, API key, blank GF project, blank transform."""
+    # env-file, backend, gf-api-key, vendor=2, api-base (blank→default),
+    # bt-project-name, bt-api-key, gf-project-name (blank→suggested), transform (blank)
+    stdin = b"\n\n\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
+    assert result.returncode == 0, result.stderr.decode()
+    out_s = result.stdout.decode()
+    assert "Datasource registered" in out_s
+    assert "Configuration saved" in out_s
+    cfg = json.loads((Path(clean_env["HOME"]) / ".gigaflow" / "config.json").read_text())
+    assert cfg["project_id"] == MOCK_PROJECT_ID
+    assert cfg["datasource_id"] == MOCK_DATASOURCE_ID
+
+
+def test_wizard_warns_when_nothing_classifies(installed_cli, mock_server, clean_env):
+    """When all spans are unclassified the wizard prints a warning with config-clear hint."""
+    # Set MOCK_ALL_UNCLASSIFIED in the test process so the in-process mock server sees it.
+    os.environ["MOCK_ALL_UNCLASSIFIED"] = "1"
+    env = dict(clean_env)
+    env["MOCK_ALL_UNCLASSIFIED"] = "1"
+    try:
+        stdin = b"\n\n\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+        result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
+        assert result.returncode == 0, result.stderr.decode()
+        out_s = result.stdout.decode()
+        err_s = result.stderr.decode()
+        assert "None of your spans matched" in out_s or "None of your spans matched" in err_s
+        assert "config clear" in out_s
+    finally:
+        os.environ.pop("MOCK_ALL_UNCLASSIFIED", None)

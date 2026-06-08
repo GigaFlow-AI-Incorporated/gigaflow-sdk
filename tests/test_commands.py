@@ -78,17 +78,18 @@ class TestSetup:
           1. Path to gigaflow.env  (blank → manual entry)
           2. Backend base URL      [resolved default — kept via blank]
           3. GigaFlow API key      (blank → none / local dev)
-          4. Project name          [arize-phoenix-project]
-          5. Path to transform     (blank → built-in)
-          6. Host                  [host.docker.internal]
-          7. Port                  (required, no default)
-          8. User                  [postgres]
-          9. Password              (via getpass — reads stdin because setsid removes tty)
-         10. Database              [postgres]
-         11. Source table          [spans]
+          4. Vendor choice         (blank → 1 → Arize Phoenix)
+          5. Host                  [host.docker.internal]
+          6. Port                  (required — supply 5432)
+          7. User                  [postgres]
+          8. Password              (via getpass — reads stdin because setsid removes tty)
+          9. Database              [postgres]
+         10. Source table          [spans]
+         11. GigaFlow project name [arize_phoenix-project]
+         12. Path to transform     (blank → built-in)
         """
-        # env-file, backend-url, api-key, project, transform, host, port, user, pw, db, table
-        stdin = b"\n\n\n\n\n\n5432\n\ntestpass\n\n\n"
+        # env-file, backend-url, api-key, vendor, host, port, user, pw, db, table, project, transform
+        stdin = b"\n\n\n\n\n5432\n\ntestpass\n\n\n\n\n"
         result = run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
         assert result.returncode == 0, err(result)
         output = out(result)
@@ -97,7 +98,7 @@ class TestSetup:
         assert "Datasource registered" in output
         assert "Sync complete" in output
         assert "Configuration saved" in output
-        assert "built-in Arize Phoenix" in output
+        assert "built-in arize_phoenix" in output
 
         # config file must have been written to the isolated HOME
         home = Path(clean_env["HOME"])
@@ -114,9 +115,10 @@ class TestSetup:
         transform_file.write_text("version: '1.0'\nsource: custom\nprimitives: {}\n")
 
         path_input = str(transform_file).encode() + b"\n"
-        # env file (blank), backend url (blank), api key (blank), project name (blank),
-        # transform path, host, port, user, password, db, table
-        stdin = b"\n\n\n\n" + path_input + b"\n5432\n\ntestpass\n\n\n"
+        # env file (blank), backend url (blank), api key (blank), vendor (blank),
+        # host (blank), port, user (blank), password, db (blank), table (blank),
+        # project name (blank), transform path
+        stdin = b"\n\n\n\n\n5432\n\ntestpass\n\n\n\n" + path_input
         result = run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
         assert result.returncode == 0, err(result)
         output = out(result)
@@ -137,10 +139,11 @@ class TestSetup:
             "GIGAFLOW_DB_NAME=postgres\n"
             "GIGAFLOW_DB_TABLE=spans\n"
         )
-        # env file path, then blanks for backend url + api key + all remaining
-        # prompts (password skipped — sourced from the env file)
+        # env file path, then blanks for backend url + api key + vendor choice +
+        # all connection prompts (password skipped — sourced from the env file)
+        # + project name (blank → env default) + transform (blank → built-in)
         env_path_input = str(env_file).encode() + b"\n"
-        stdin = env_path_input + b"\n\n\n\n\n\n\n\n\n"
+        stdin = env_path_input + b"\n\n\n\n\n\n\n\n\n\n"
         result = run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
         assert result.returncode == 0, err(result)
         output = out(result)
@@ -155,9 +158,9 @@ class TestSetup:
     def test_setup_wizard_bad_env_file_path(self, installed_cli, mock_server, clean_env, tmp_path):
         """A bad env file path prints an error but the wizard continues with manual entry."""
         missing = str(tmp_path / "nonexistent.env").encode() + b"\n"
-        # After bad env path: backend url, api key, project name, transform, host,
-        # port, user, password, db, table
-        stdin = missing + b"\n\n\n\n\n5432\n\ntestpass\n\n\n"
+        # After bad env path: backend url, api key, vendor choice, host, port,
+        # user, password, db, table, project name, transform
+        stdin = missing + b"\n\n\n\n\n5432\n\ntestpass\n\n\n\n\n"
         result = run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
         assert result.returncode == 0, err(result)
         output = out(result)
@@ -167,9 +170,10 @@ class TestSetup:
     def test_setup_wizard_bad_transform_path(self, installed_cli, mock_server, clean_env, tmp_path):
         """Providing a path to a non-existent file aborts setup with an error."""
         missing = str(tmp_path / "nonexistent.yml").encode() + b"\n"
-        # env file (blank), backend url (blank), api key (blank), project name
-        # (blank), transform path (missing → aborts)
-        stdin = b"\n\n\n\n" + missing + b"\n5432\n\ntestpass\n\n\n"
+        # env file (blank), backend url (blank), api key (blank), vendor (blank),
+        # host (blank), port, user (blank), password, db (blank), table (blank),
+        # project name (blank), transform path (missing → aborts)
+        stdin = b"\n\n\n\n\n5432\n\ntestpass\n\n\n\n" + missing
         result = run(["--backend", mock_server, "setup"], clean_env, stdin=stdin)
         assert result.returncode != 0
         assert b"Could not read transform file" in result.stderr
