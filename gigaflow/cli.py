@@ -17,13 +17,16 @@ Commands:
 """
 
 import argparse
+import importlib.metadata
 import os
 import sys
 
-from gigaflow import _auth, _config, _fmt
+from gigaflow import _auth, _config
 from gigaflow._setup import load_env_file
 from gigaflow.commands import (
     auth as auth_cmd,
+)
+from gigaflow.commands import (
     compute,
     config,
     inspect,
@@ -59,7 +62,7 @@ def _resolve_backend_url(flag, env_val, config_val):
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gigaflow",
-        description="GigaFlow CLI — ingest Arize Phoenix traces and compute Flow analysis.",
+        description="GigaFlow CLI — ingest LLM/agent traces from your observability platform and compute Flow analysis.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
@@ -77,6 +80,11 @@ examples:
   gigaflow config show
   gigaflow config clear
         """,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"gigaflow {importlib.metadata.version('gigaflow')}",
     )
     parser.add_argument(
         "--backend",
@@ -119,9 +127,9 @@ examples:
     return parser
 
 
-def main():
+def main(argv=None):
     parser = _build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not hasattr(args, "func"):
         parser.print_help()

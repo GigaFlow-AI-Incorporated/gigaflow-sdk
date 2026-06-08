@@ -11,7 +11,8 @@ import sys
 import webbrowser
 
 from gigaflow import _fmt
-from gigaflow._http import api, auth_error_hint, unreachable_hint
+from gigaflow._http import auth_error_hint, unreachable_hint
+from gigaflow.commands._retry import get_with_retry
 
 
 def _fail(status, resp, base_url: str, what: str) -> None:
@@ -41,11 +42,11 @@ def _handle_inspect(args, base_url: str) -> None:
     _fmt.header("GigaFlow Trace Inspector")
 
     _fmt.section(f"Fetching trace {args.trace_id[:8]}…")
-    status, trace = api(base_url, "GET", f"/traces/{args.trace_id}", api_key=getattr(args, "api_key", None))
+    status, trace = get_with_retry(base_url, f"/traces/{args.trace_id}", api_key=getattr(args, "api_key", None))
     if status != 200:
         _fail(status, trace, base_url, "fetch trace")
 
-    status, spans_resp = api(base_url, "GET", f"/traces/{args.trace_id}/spans", api_key=getattr(args, "api_key", None))
+    status, spans_resp = get_with_retry(base_url, f"/traces/{args.trace_id}/spans", api_key=getattr(args, "api_key", None))
     if status != 200:
         _fail(status, spans_resp, base_url, "fetch spans")
 

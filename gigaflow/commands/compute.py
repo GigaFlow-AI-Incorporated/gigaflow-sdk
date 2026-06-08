@@ -8,15 +8,67 @@ Usage:
 
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from gigaflow import _fmt
 from gigaflow._http import api, auth_error_hint, unreachable_hint
 
+# Longer timeout for the synchronous compute POST so the client does not bail
+# (and re-POST, spawning a duplicate run) before the hosted gateway even
+# responds. Overridable via --timeout N or $GIGAFLOW_COMPUTE_TIMEOUT.
+COMPUTE_TIMEOUT = float(os.environ.get("GIGAFLOW_COMPUTE_TIMEOUT", "180"))
+
 _HINT = (
     "Hint: query the `trace_metrics` view — it has one row per trace with all Flow columns.\n"
     "      Run `gigaflow query --examples` to see example queries."
 )
+
+
+class ComputeStillRunning(RuntimeError):  # noqa: N818 - "Running", not an error condition
+    """Raised when Flow is still computing server-side past the poll deadline."""
+
+
+def _to_float(value) -> float:
+    """Coerce a metric value (possibly a string from /query/ JSON) to float."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5):
+    """Poll trace_metrics until this trace has a run_id, or raise ComputeStillRunning."""
+    sql = (
+        "SELECT run_id, groundedness, tool_consumption, total_cost_usd "
+        f"FROM trace_metrics WHERE trace_id = '{trace_id}' AND run_id IS NOT NULL"
+    )
+    start = time.monotonic()
+    while time.monotonic() - start < deadline_s:
+        status, result = api(base_url, "POST", "/query/", {"sql": sql, "limit": 1},
+                             api_key=gigaflow_key)
+        if status in (401, 403):
+            # Auth lapsed mid-poll (e.g. login token expired) — fail fast
+            # instead of polling uselessly to the deadline.
+            raise RuntimeError(auth_error_hint())
+        if status == 200:
+            cols = result.get("columns", [])
+            rows = result.get("rows", [])
+            if rows and "run_id" in cols:
+                row = rows[0]
+
+                def col(name, _cols=cols, _row=row):
+                    return _row[_cols.index(name)] if name in _cols else None
+                # The /query/ JSON returns numeric columns as strings (e.g.
+                # total_cost_usd = "0.0529"); coerce so downstream :.2f/:.4f
+                # formatting in the success + cost-summary lines doesn't crash.
+                return (_to_float(col("groundedness")), _to_float(col("tool_consumption")),
+                        {"total_cost_usd": _to_float(col("total_cost_usd"))})
+        time.sleep(interval_s)
+    raise ComputeStillRunning(
+        f"Flow for {trace_id[:8]}… is still computing on the server after "
+        f"{deadline_s}s. Re-run `gigaflow compute` later to pick up the result."
+    )
 
 
 def register(sub) -> None:
@@ -65,6 +117,13 @@ def register(sub) -> None:
         action="store_true",
         help="After each run, print a per-stage cost table (model, tokens, requests, USD)",
     )
+    p.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Per-trace compute timeout in seconds (default: 180 / "
+             "$GIGAFLOW_COMPUTE_TIMEOUT)",
+    )
     p.set_defaults(func=_handle_compute)
 
 
@@ -73,16 +132,20 @@ def register(sub) -> None:
 def _handle_compute(args, base_url: str) -> None:
     _fmt.header("GigaFlow Compute")
 
+    global COMPUTE_TIMEOUT
+    if getattr(args, "timeout", None):
+        COMPUTE_TIMEOUT = args.timeout
+
     # The OpenAI key is forwarded in the request BODY for the backend's LLM
     # calls. It is *separate* from the gigaflow API key (args.api_key), which
     # authorises the protected /flow compute endpoint via the Authorization
     # header. Both can be required at once on a hosted backend.
     openai_key = os.environ.get("OPENAI_API_KEY")
     if not openai_key:
-        _fmt.fail(
-            "OPENAI_API_KEY not set. Add it to gigaflow.env or export it before running."
+        _fmt.info(
+            "No OPENAI_API_KEY set — the hosted backend will use its platform key. "
+            "(Local/self-hosted backends may require one.)"
         )
-        sys.exit(1)
 
     gigaflow_key = getattr(args, "api_key", None)
 
@@ -139,7 +202,10 @@ def _handle_compute(args, base_url: str) -> None:
     # ── 3. Build the request body ────────────────────────────────────────────
     # "api_key" here is the OpenAI key the backend uses for its LLM calls — NOT
     # the gigaflow auth key (that rides in the Authorization header below).
-    body: dict = {"api_key": openai_key}
+    # Optional: when unset, the hosted backend falls back to its platform key.
+    body: dict = {}
+    if openai_key:
+        body["api_key"] = openai_key
     if args.model:
         body["model"] = args.model
     if args.k_threshold is not None:
@@ -148,6 +214,7 @@ def _handle_compute(args, base_url: str) -> None:
     # ── 4. Run in parallel ───────────────────────────────────────────────────
     success = 0
     failure = 0
+    pending = 0
     width = len(str(len(trace_ids)))
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
@@ -169,11 +236,19 @@ def _handle_compute(args, base_url: str) -> None:
                 if args.cost_breakdown:
                     _print_cost_breakdown(token_usage)
                 success += 1
+            except ComputeStillRunning as exc:
+                _fmt.warn(f"[{i:{width}}/{len(trace_ids)}] {short}…  {exc}")
+                pending += 1
             except Exception as exc:
                 _fmt.fail(f"[{i:{width}}/{len(trace_ids)}] {short}…  {exc}")
                 failure += 1
 
     print()
+    if pending:
+        _fmt.warn(
+            f"{pending} trace(s) still computing on the server — re-run "
+            "`gigaflow compute` later to pick up their results."
+        )
     if failure == 0:
         _fmt.ok(f"Done — {success} trace(s) computed successfully.")
     else:
@@ -221,10 +296,18 @@ def _run_one(
     caller is expected to handle an empty dict gracefully.
     """
     status, resp = api(
-        base_url, "POST", f"/flow/{trace_id}", body, api_key=gigaflow_key
+        base_url, "POST", f"/flow/{trace_id}", body, api_key=gigaflow_key,
+        timeout=COMPUTE_TIMEOUT,
     )
     if status != 200:
+        if status in (502, 503, 504):
+            # Gateway timed out a long synchronous compute; the backend keeps
+            # going. Poll for the run instead of failing / re-POSTing.
+            return _poll_for_run(base_url, trace_id, gigaflow_key)
         if status is None:
+            reason = (resp or {}).get("error", "") if isinstance(resp, dict) else ""
+            if "timed out" in reason.lower() or "timeout" in reason.lower():
+                return _poll_for_run(base_url, trace_id, gigaflow_key)
             raise RuntimeError(unreachable_hint(base_url))
         if status in (401, 403):
             raise RuntimeError(auth_error_hint())
@@ -253,7 +336,7 @@ def _print_cost_summary(token_usage: dict) -> None:
     """
     if not token_usage:
         return
-    total_cost = token_usage.get("total_cost_usd") or 0.0
+    total_cost = _to_float(token_usage.get("total_cost_usd"))
     total_tokens = token_usage.get("total_tokens") or 0
     total_requests = token_usage.get("total_requests") or 0
     print(

@@ -5,6 +5,7 @@ import sys
 from gigaflow import _config, _fmt
 from gigaflow._http import api, auth_error_hint, unreachable_hint
 from gigaflow._setup import do_sync, run_wizard
+from gigaflow.commands._retry import get_with_retry
 
 
 def _fail(status, resp, base_url: str, what: str) -> None:
@@ -70,7 +71,7 @@ def _handle_traces(args, base_url: str) -> None:
     print(f"  {len(traces)} trace(s)")
     if traces:
         print("  Get spans:  gigaflow spans <trace_id>")
-        print("  Run Flow:    gigaflow run flow <trace_id>")
+        print('  Run Flow:    gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"')
     print()
 
 
@@ -80,7 +81,7 @@ def _handle_spans(args, base_url: str) -> None:
         sys.exit(1)
 
     _fmt.section(f"Spans for trace {args.trace_id[:8]}…")
-    status, resp = api(base_url, "GET", f"/traces/{args.trace_id}/spans", api_key=getattr(args, "api_key", None))
+    status, resp = get_with_retry(base_url, f"/traces/{args.trace_id}/spans", api_key=getattr(args, "api_key", None))
     if status != 200:
         _fail(status, resp, base_url, "get spans")
 

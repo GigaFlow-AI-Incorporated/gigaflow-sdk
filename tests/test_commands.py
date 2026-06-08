@@ -295,14 +295,16 @@ class TestCompute:
         assert result.returncode == 0, err(result)
         assert _MockAPIHandler.last_flow_body.get("api_key") == "sk-test-key-from-file"
 
-    def test_compute_missing_api_key_exits_nonzero(self, installed_cli, mock_server, configured_env):
-        """Missing OPENAI_API_KEY exits non-zero with a clear message."""
+    def test_compute_missing_openai_key_uses_platform_key(self, installed_cli, mock_server, configured_env):
+        """Missing OPENAI_API_KEY no longer fails: on a hosted backend Flow runs
+        on the platform key, so the CLI proceeds (exit 0) and notes this. The
+        request body omits the key (see test_compute_no_openai_key_omits_from_body)."""
         result = run(
             ["--backend", mock_server, "compute",
              "SELECT trace_id FROM trace_metrics"],
             configured_env,
         )
-        assert result.returncode != 0
+        assert result.returncode == 0, err(result)
         assert b"OPENAI_API_KEY" in result.stdout or b"OPENAI_API_KEY" in result.stderr
 
     def test_compute_no_trace_id_column_exits_nonzero(self, installed_cli, mock_server, configured_env_with_key):
