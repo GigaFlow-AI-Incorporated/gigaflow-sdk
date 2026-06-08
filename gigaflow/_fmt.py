@@ -26,6 +26,10 @@ def fail(msg: str):
     print(f"  ✗  {msg}", file=sys.stderr)
 
 
+def warn(msg: str):
+    print(f"  !  {msg}", file=sys.stderr)
+
+
 def info(msg: str):
     print(f"     {msg}")
 

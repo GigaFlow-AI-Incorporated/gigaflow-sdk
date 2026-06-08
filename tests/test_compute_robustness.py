@@ -68,3 +68,12 @@ def test_run_one_real_connection_error_still_raises(monkeypatch):
     with pytest.raises(RuntimeError) as e:
         C._run_one("http://b", "t1", {"api_key": "sk"}, None)
     assert "reach" in str(e.value).lower()
+
+
+def test_compute_argparser_has_timeout():
+    import argparse
+    p = argparse.ArgumentParser()
+    sub = p.add_subparsers()
+    C.register(sub)
+    ns = p.parse_args(["compute", "SELECT 1", "--timeout", "42"])
+    assert ns.timeout == 42.0

@@ -102,6 +102,13 @@ def register(sub) -> None:
         action="store_true",
         help="After each run, print a per-stage cost table (model, tokens, requests, USD)",
     )
+    p.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Per-trace compute timeout in seconds (default: 180 / "
+             "$GIGAFLOW_COMPUTE_TIMEOUT)",
+    )
     p.set_defaults(func=_handle_compute)
 
 
@@ -109,6 +116,10 @@ def register(sub) -> None:
 
 def _handle_compute(args, base_url: str) -> None:
     _fmt.header("GigaFlow Compute")
+
+    global COMPUTE_TIMEOUT
+    if getattr(args, "timeout", None):
+        COMPUTE_TIMEOUT = args.timeout
 
     # The OpenAI key is forwarded in the request BODY for the backend's LLM
     # calls. It is *separate* from the gigaflow API key (args.api_key), which
@@ -185,6 +196,7 @@ def _handle_compute(args, base_url: str) -> None:
     # ── 4. Run in parallel ───────────────────────────────────────────────────
     success = 0
     failure = 0
+    pending = 0
     width = len(str(len(trace_ids)))
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
@@ -206,11 +218,19 @@ def _handle_compute(args, base_url: str) -> None:
                 if args.cost_breakdown:
                     _print_cost_breakdown(token_usage)
                 success += 1
+            except ComputeStillRunning as exc:
+                _fmt.warn(f"[{i:{width}}/{len(trace_ids)}] {short}…  {exc}")
+                pending += 1
             except Exception as exc:
                 _fmt.fail(f"[{i:{width}}/{len(trace_ids)}] {short}…  {exc}")
                 failure += 1
 
     print()
+    if pending:
+        _fmt.warn(
+            f"{pending} trace(s) still computing on the server — re-run "
+            "`gigaflow compute` later to pick up their results."
+        )
     if failure == 0:
         _fmt.ok(f"Done — {success} trace(s) computed successfully.")
     else:
