@@ -8,6 +8,8 @@ The CLI is a thin client: your traces live in an observability platform (Arize
 Phoenix, Logfire, Braintrust, MLflow, W&B Weave) or are sent via OTLP; the backend
 does the compute; this CLI drives ingest → compute → inspection.
 
+📖 **Documentation:** <https://gigaflow-ai-incorporated.github.io/gigaflow-sdk/>
+
 ---
 
 ## Install

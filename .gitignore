@@ -15,6 +15,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# MkDocs build output
+site/
+
 # Environment & secrets (never commit real values)
 .env
 .env.*

@@ -1,0 +1,68 @@
+site_name: GigaFlow CLI
+site_description: Command-line client for GigaFlow — connect LLM/agent traces and run Flow analysis.
+# Default to the GitHub Pages project URL so the deploy works out of the box.
+# To use a custom domain, set it in repo Settings → Pages (which writes a CNAME),
+# then change this to https://docs.gigaflow.io/.
+site_url: https://gigaflow-ai-incorporated.github.io/gigaflow-sdk/
+repo_url: https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk
+repo_name: GigaFlow-AI-Incorporated/gigaflow-sdk
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; GigaFlow AI, Inc.
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Connect a source:
+      - Overview: sources/README.md
+      - Arize Phoenix: sources/arize-phoenix.md
+      - Braintrust: sources/braintrust.md
+      - Logfire: sources/logfire.md
+      - MLflow: sources/mlflow.md
+      - W&B Weave: sources/wb-weave.md
+      - Direct OTLP: sources/otlp.md
+  - Querying: querying.md
+  - Transform configs: transforms.md
+  - Publishing: publishing.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - toc:
+      permalink: true
+  - tables
+
+plugins:
+  - search
+
+# Exclude internal planning docs from the published site.
+exclude_docs: |
+  superpowers/
