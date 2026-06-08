@@ -1,7 +1,7 @@
 # Transform config
 
 > Preserved from the original README. A transform maps a source's raw spans to
-> GigaFlow primitives. Per-source specifics live in [docs/sources/](sources/).
+> GigaFlow primitives. Per-source specifics live in [Connect a source](sources/README.md).
 
 
 GigaFlow maps raw Arize Phoenix spans to its own primitives (`llm_call`, `tool_invocation`, `user_input`) using a YAML transform config.
@@ -32,7 +32,7 @@ After changing the transform config, re-sync to reclassify your spans:
 gigaflow sync
 ```
 
-Advanced: a `transform.yml` may also declare an optional top-level `auth_mappings` block that tags each tool-output atom with a per-atom Beta-distribution trust score, surfaced as the `authoritative_groundedness` trace metric. See [`gigaflow/README.md` → Authoritativeness mappings](gigaflow/README.md#authoritativeness-mappings-auth_mappings) for the full schema, the `when`-expression grammar, and worked examples for retrieval / HTTP / SQL tools.
+Advanced: a `transform.yml` may also declare an optional top-level `auth_mappings` block that tags each tool-output atom with a per-atom Beta-distribution trust score, surfaced as the `authoritative_groundedness` trace metric. See the [GigaFlow backend repo](https://github.com/GigaFlow-AI-Incorporated/gigaflow) for the full `auth_mappings` schema, the `when`-expression grammar, and worked examples for retrieval / HTTP / SQL tools.
 
 ### Transform config format
 

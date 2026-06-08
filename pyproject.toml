@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gigaflow"
 version = "0.3.1"
-description = "GigaFlow CLI — connect Arize Phoenix traces to GigaFlow and analyze them"
+description = "GigaFlow CLI — connect LLM/agent traces (Arize Phoenix, Logfire, Braintrust, MLflow, W&B Weave, or OTLP) to GigaFlow and run Flow analysis"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "GigaFlow AI, Inc.", email = "james@gigaflow.io"}
 ]
-keywords = ["gigaflow", "arize", "phoenix", "llm", "observability", "tracing", "cli"]
+keywords = ["gigaflow", "llm", "agent", "observability", "tracing", "evaluation", "flow-analysis", "arize", "phoenix", "logfire", "braintrust", "mlflow", "weave", "otlp", "cli"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -33,13 +33,21 @@ dev = [
     "ruff>=0.1.6",
     "mypy>=1.7.0",
 ]
+# Docs site toolchain (not needed to run the CLI — the runtime stays zero-dep).
+# Build locally with:  uv run --extra docs mkdocs serve
+docs = [
+    "mkdocs-material>=9.5",
+]
 
 [project.scripts]
 gigaflow = "gigaflow.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk"
+Documentation = "https://docs.gigaflow.io/"
 Repository = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk"
+Changelog = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk/blob/main/CHANGELOG.md"
+Issues = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
