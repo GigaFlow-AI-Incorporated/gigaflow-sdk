@@ -259,3 +259,21 @@ def test_wizard_warns_when_nothing_classifies(installed_cli, mock_server, clean_
         assert "config clear" in out_s
     finally:
         os.environ.pop("MOCK_ALL_UNCLASSIFIED", None)
+
+
+def test_choose_config_source_interactive_returns_empty(monkeypatch):
+    _install_prompts(monkeypatch, ["1"])  # choose interactive
+    assert _setup._choose_config_source() == {}
+
+
+def test_choose_config_source_blank_defaults_to_interactive(monkeypatch):
+    _install_prompts(monkeypatch, [""])  # Enter → default "1"
+    assert _setup._choose_config_source() == {}
+
+
+def test_choose_config_source_loads_env_file(monkeypatch, tmp_path):
+    env_file = tmp_path / "gigaflow.env"
+    env_file.write_text("GIGAFLOW_PROJECT_NAME=from-file\n")
+    _install_prompts(monkeypatch, ["2", str(env_file)])  # choose file, then path
+    env = _setup._choose_config_source()
+    assert env["GIGAFLOW_PROJECT_NAME"] == "from-file"

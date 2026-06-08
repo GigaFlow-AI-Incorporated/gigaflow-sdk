@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from gigaflow import _config, _fmt
 from gigaflow._http import api
 
+GIGAFLOW_ENV_DOCS = "https://docs.gigaflow.io/gigaflow-env/"
+
 
 @dataclass(frozen=True)
 class VendorSpec:
@@ -251,6 +253,28 @@ def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tu
     synced_spans = resp.get("synced_spans", 0)
     _fmt.ok(f"Sync complete: {synced_traces} trace(s), {synced_spans} span(s)")
     return synced_traces, synced_spans
+
+
+def _choose_config_source() -> dict:
+    """Step 1: let the user enter values interactively or load a gigaflow.env.
+
+    Returns the parsed env dict (empty for interactive entry), used as defaults
+    for the prompts that follow."""
+    _fmt.section("Step 1: Configuration source")
+    print()
+    print("  How do you want to provide configuration?")
+    print("    1) Enter values interactively (recommended)")
+    print("    2) Load from a gigaflow.env file")
+    print(f"  See {GIGAFLOW_ENV_DOCS} for the gigaflow.env format.")
+    print()
+    choice = _fmt.prompt("Choice", "1")
+    if choice.strip() == "2":
+        env_path = _fmt.prompt("Path to gigaflow.env", required=True)
+        env = load_env_file(env_path)
+        if env:
+            _fmt.ok(f"Loaded env file: {env_path}")
+        return env
+    return {}
 
 
 def run_wizard(base_url: str) -> dict | None:
