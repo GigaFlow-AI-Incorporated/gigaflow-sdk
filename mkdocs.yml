@@ -1,9 +1,10 @@
 site_name: GigaFlow CLI
 site_description: Command-line client for GigaFlow — connect LLM/agent traces and run Flow analysis.
-# Default to the GitHub Pages project URL so the deploy works out of the box.
-# To use a custom domain, set it in repo Settings → Pages (which writes a CNAME),
-# then change this to https://docs.gigaflow.io/.
-site_url: https://gigaflow-ai-incorporated.github.io/gigaflow-sdk/
+# Custom domain (docs.gigaflow.io). The docs/CNAME file publishes this domain to
+# GitHub Pages on deploy; the Cloudflare CNAME record is managed in gigaflow-infra
+# (dns.tf). Until DNS/cert finish provisioning, the site is also reachable at
+# https://gigaflow-ai-incorporated.github.io/gigaflow-sdk/.
+site_url: https://docs.gigaflow.io/
 repo_url: https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk
 repo_name: GigaFlow-AI-Incorporated/gigaflow-sdk
 edit_uri: edit/main/docs/

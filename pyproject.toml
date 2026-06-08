@@ -44,7 +44,7 @@ gigaflow = "gigaflow.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk"
-Documentation = "https://gigaflow-ai-incorporated.github.io/gigaflow-sdk/"
+Documentation = "https://docs.gigaflow.io/"
 Repository = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk"
 Changelog = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk/blob/main/CHANGELOG.md"
 Issues = "https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk/issues"
