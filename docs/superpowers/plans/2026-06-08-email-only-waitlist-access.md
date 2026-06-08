@@ -896,15 +896,18 @@ git commit -m "feat(website): auto-open book-a-demo modal on ?book-demo"
 **Files:**
 - Modify: `src/App.tsx` (remove the `/cli-auth` branch + the `CliAuth` import)
 - Delete: `src/components/CliAuth.tsx`
+- Delete: `src/components/CliAuth.test.tsx` (tests the retired component)
+- Delete: `src/App.cliauth.test.tsx` (tests the retired `/cli-auth` route)
 
 > The CLI no longer uses the Supabase browser handoff (Phase 2). `AuthProvider`
 > / `AuthContext` stay — they back the "Analyze a trace" feature, which is
-> unrelated to CLI login.
+> unrelated to CLI login (so `src/contexts/AuthContext.test.tsx` stays too).
 
-- [ ] **Step 1: Confirm `CliAuth` has no other importers**
+- [ ] **Step 1: Confirm `CliAuth` importers**
 
 Run: `grep -rn "CliAuth" src/ | grep -v "src/components/CliAuth.tsx"`
-Expected: only `src/App.tsx` references it.
+Expected: `src/App.tsx`, `src/App.cliauth.test.tsx`, and `src/components/CliAuth.test.tsx`.
+The two test files are deleted in Step 3 along with the component; `App.tsx` is edited in Step 2.
 
 - [ ] **Step 2: Remove the route and import from `src/App.tsx`**
 
@@ -926,16 +929,17 @@ and delete the entire early-return block in `App()`:
   }
 ```
 
-- [ ] **Step 3: Delete the component**
+- [ ] **Step 3: Delete the component and its now-obsolete tests**
 
 ```bash
-git rm src/components/CliAuth.tsx
+git rm src/components/CliAuth.tsx src/components/CliAuth.test.tsx src/App.cliauth.test.tsx
 ```
 
 - [ ] **Step 4: Verify build + tests**
 
 Run: `npm run build && npm run test`
-Expected: build succeeds with no unresolved imports; tests pass.
+Expected: build succeeds with no unresolved imports; tests pass (the retired
+cli-auth tests are gone; `SignupContext.test.tsx` and the rest stay green).
 
 - [ ] **Step 5: Commit**
 
