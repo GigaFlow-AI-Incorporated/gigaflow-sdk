@@ -383,21 +383,63 @@ def run_wizard(base_url: str) -> dict | None:
     return config
 
 
-def _show_span_preview(base_url: str, project_id: str, api_key: str | None = None):
-    status, resp = api(base_url, "GET", f"/traces/?project_id={project_id}", api_key=_resolve_key(api_key))
+_PRIMITIVES = ("llm_call", "tool_invocation", "user_input", "transform")
+
+
+def _classification_summary(spans: list) -> tuple[dict, int]:
+    counts = dict.fromkeys(_PRIMITIVES, 0)
+    unclassified = 0
+    for s in spans:
+        pt = s.get("primitive_type")
+        if pt in counts:
+            counts[pt] += 1
+        else:
+            unclassified += 1
+    return counts, unclassified
+
+
+def _fetch_sample_spans(base_url, project_id, api_key):
+    status, resp = api(base_url, "GET", f"/traces/?project_id={project_id}",
+                       api_key=_resolve_key(api_key))
     if status != 200:
-        return
+        return []
     traces = resp.get("traces", [])
     if not traces:
-        return
+        return []
     trace_id = traces[0]["trace_id"]
-    status, resp = api(base_url, "GET", f"/traces/{trace_id}/spans", api_key=_resolve_key(api_key))
+    status, resp = api(base_url, "GET", f"/traces/{trace_id}/spans",
+                       api_key=_resolve_key(api_key))
     if status != 200:
+        return []
+    return resp if isinstance(resp, list) else resp.get("spans", [])
+
+
+def _preview_and_confirm(base_url, project_id, api_key) -> bool:
+    """Show how a sample of the user's spans classified. Returns True if it looks
+    OK (or there's nothing to preview), False if classification looks broken."""
+    spans = _fetch_sample_spans(base_url, project_id, api_key)
+    if not spans:
+        return True
+    counts, unclassified = _classification_summary(spans)
+    classified = sum(counts.values())
+    _fmt.section("Classification preview")
+    summary = " · ".join(f"{n} {p}" for p, n in counts.items() if n)
+    _fmt.info(f"{len(spans)} spans sampled → {summary or '0 classified'} · {unclassified} unmatched")
+    if classified == 0:
+        _fmt.fail("None of your spans matched the transform.")
+        observed = sorted({s.get("span_name", "?") for s in spans})[:8]
+        _fmt.info("Span names seen: " + ", ".join(observed))
+        return False
+    return True
+
+
+def _show_span_preview(base_url: str, project_id: str, api_key: str | None = None):
+    spans = _fetch_sample_spans(base_url, project_id, api_key)
+    if not spans:
         return
-    spans = resp if isinstance(resp, list) else resp.get("spans", [])
-    classified = [s for s in spans if s.get("primitive_type")]
-    unclassified = [s for s in spans if not s.get("primitive_type")]
-    _fmt.info(f"Sample trace — {len(classified)} classified, {len(unclassified)} unclassified")
+    counts, unclassified = _classification_summary(spans)
+    classified = sum(counts.values())
+    _fmt.info(f"Sample trace — {classified} classified, {unclassified} unclassified")
     for ptype in ["llm_call", "tool_invocation", "user_input"]:
         match = next((s for s in spans if s.get("primitive_type") == ptype), None)
         if match:

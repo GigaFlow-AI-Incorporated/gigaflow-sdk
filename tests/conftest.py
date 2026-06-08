@@ -132,24 +132,28 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
             })
 
         elif p == f"/api/v1/traces/{MOCK_TRACE_ID}/spans":
-            self._ok([
-                {
-                    "span_id":        MOCK_SPAN_ID,
-                    "span_name":      "chat-completion",
-                    "span_type":      "llm",
-                    "primitive_type": "llm_call",
-                    "primitive_data": {"model": "gpt-4o-mini", "prompt_tokens": 120},
-                    "started_at":     "2026-01-01T10:00:01",
-                },
-                {
-                    "span_id":        "eeeeeeee-0000-0000-0000-000000000005",
-                    "span_name":      "web-search",
-                    "span_type":      "tool",
-                    "primitive_type": "tool_invocation",
-                    "primitive_data": {"tool_name": "search"},
-                    "started_at":     "2026-01-01T10:00:02",
-                },
-            ])
+            if os.environ.get("MOCK_ALL_UNCLASSIFIED") == "1":
+                self._ok([{"span_name": "weird-op", "primitive_type": None},
+                          {"span_name": "other-op", "primitive_type": None}])
+            else:
+                self._ok([
+                    {
+                        "span_id":        MOCK_SPAN_ID,
+                        "span_name":      "chat-completion",
+                        "span_type":      "llm",
+                        "primitive_type": "llm_call",
+                        "primitive_data": {"model": "gpt-4o-mini", "prompt_tokens": 120},
+                        "started_at":     "2026-01-01T10:00:01",
+                    },
+                    {
+                        "span_id":        "eeeeeeee-0000-0000-0000-000000000005",
+                        "span_name":      "web-search",
+                        "span_type":      "tool",
+                        "primitive_type": "tool_invocation",
+                        "primitive_data": {"tool_name": "search"},
+                        "started_at":     "2026-01-01T10:00:02",
+                    },
+                ])
 
         elif p == "/api/v1/projects/":
             self._ok({"projects": [{

@@ -182,3 +182,24 @@ def test_collectors_are_bound_into_registry():
     # After this task, no vendor should use the _todo_collect placeholder.
     for v in _setup.VENDORS:
         assert v.collect is not _setup._todo_collect
+
+
+def test_classification_summary_counts_primitives():
+    spans = [
+        {"primitive_type": "llm_call"},
+        {"primitive_type": "llm_call"},
+        {"primitive_type": "tool_invocation"},
+        {"primitive_type": None},
+        {},  # no primitive_type
+    ]
+    counts, unclassified = _setup._classification_summary(spans)
+    assert counts["llm_call"] == 2
+    assert counts["tool_invocation"] == 1
+    assert unclassified == 2
+
+
+def test_classification_summary_all_unclassified():
+    spans = [{"primitive_type": None}, {}]
+    counts, unclassified = _setup._classification_summary(spans)
+    assert sum(counts.values()) == 0
+    assert unclassified == 2
