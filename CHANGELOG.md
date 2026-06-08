@@ -10,9 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The CLI now defaults to the hosted backend (`https://api.gigaflow.io/api/v1`),
-  so `pip install gigaflow && gigaflow login` works out of the box. For local
-  dev, pass `--backend http://localhost:8000/api/v1` or set
-  `$GIGAFLOW_BACKEND_URL`.
+  so `pip install gigaflow && gigaflow login` works out of the box.
 
 ## [0.3.0] - 2026-06-07
 
@@ -20,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Per-user accounts: `gigaflow login` / `logout` / `whoami`. `login` opens a
   browser sign-in (email + password) and captures the session back to the CLI
-  via a one-shot localhost callback; credentials are stored in
+  via a one-shot local callback; credentials are stored in
   `~/.gigaflow/credentials.json` (mode 0600) with automatic token refresh.
 - Logged-in uploads are attributed to your account; the web UI shows only your
   traces. Credential precedence: explicit `--api-key` > env > logged-in user
@@ -37,14 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Hosted-backend support.** Point the CLI at any GigaFlow backend instead of
-  `localhost`. The backend URL resolves as `--backend` > `$GIGAFLOW_BACKEND_URL`
-  > saved config `backend_url` > `http://localhost:8000/api/v1`.
+- **Hosted-backend support.** Point the CLI at any GigaFlow backend. The backend
+  URL resolves as `--backend` > `$GIGAFLOW_BACKEND_URL` > saved config
+  `backend_url` > a built-in default.
 - **API-key authentication.** Supply a GigaFlow API key via `--api-key`,
   `$GIGAFLOW_API_KEY`, or the saved config `api_key` field (resolved in that
   order). When present it is forwarded on every request as
   `Authorization: Bearer <key>`, satisfying the backend's protected Flow compute
-  endpoint when it runs with `GIGAFLOW_DEV_MODE=false`.
+  endpoint.
 - `gigaflow setup` now prompts for the backend URL (defaulting to the current
   resolved value) and an optional API key, persisting both to
   `~/.gigaflow/config.json`.

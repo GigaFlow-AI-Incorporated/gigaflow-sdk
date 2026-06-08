@@ -1,8 +1,7 @@
 # Transform config
 
-> Preserved from the original README. A transform maps a source's raw spans to
-> GigaFlow primitives. Per-source specifics live in [Connect a source](sources/README.md).
-
+A transform maps a source's raw spans to GigaFlow primitives. Per-source specifics
+live in [Connect a source](sources/README.md).
 
 GigaFlow maps raw Arize Phoenix spans to its own primitives (`llm_call`, `tool_invocation`, `user_input`) using a YAML transform config.
 
