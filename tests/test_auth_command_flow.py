@@ -24,5 +24,5 @@ def test_login_command_not_on_allowlist_opens_book_demo(monkeypatch, capsys):
     monkeypatch.setattr(auth_cmd.webbrowser, "open", lambda url: opened.setdefault("url", url))
     auth_cmd._handle_login(args=None, base_url="https://b/api/v1")
     out = capsys.readouterr().out
-    assert "join the waitlist" in out.lower()
+    assert "book a demo" in out.lower()
     assert opened["url"] == "https://gigaflow.io/?book-demo"
