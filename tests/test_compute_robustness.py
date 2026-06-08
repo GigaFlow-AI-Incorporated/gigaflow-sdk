@@ -32,3 +32,39 @@ def test_poll_for_run_times_out(monkeypatch):
     import pytest
     with pytest.raises(C.ComputeStillRunning):
         C._poll_for_run("http://b", "t1", None, deadline_s=10, interval_s=1)
+
+
+def test_run_one_polls_on_timeout_single_post(monkeypatch):
+    posts = {"n": 0}
+
+    def fake_api(base, method, path, body=None, **kw):
+        if path.startswith("/flow/"):
+            posts["n"] += 1
+            return None, {"error": "request timed out"}   # client timeout
+        return 200, _metrics_row()                          # poll query
+    monkeypatch.setattr(C, "api", fake_api)
+    monkeypatch.setattr(C.time, "sleep", lambda *_: None)
+    g, tc, usage = C._run_one("http://b", "t1", {"api_key": "sk"}, None)
+    assert g == 0.5
+    assert posts["n"] == 1   # exactly ONE compute POST — no duplicate run
+
+
+def test_run_one_polls_on_504(monkeypatch):
+    def fake_api(base, method, path, body=None, **kw):
+        if path.startswith("/flow/"):
+            return 504, {"error": "<html>504</html>"}
+        return 200, _metrics_row()
+    monkeypatch.setattr(C, "api", fake_api)
+    monkeypatch.setattr(C.time, "sleep", lambda *_: None)
+    g, tc, usage = C._run_one("http://b", "t1", {"api_key": "sk"}, None)
+    assert g == 0.5
+
+
+def test_run_one_real_connection_error_still_raises(monkeypatch):
+    def fake_api(base, method, path, body=None, **kw):
+        return None, {"error": "Connection refused"}
+    monkeypatch.setattr(C, "api", fake_api)
+    import pytest
+    with pytest.raises(RuntimeError) as e:
+        C._run_one("http://b", "t1", {"api_key": "sk"}, None)
+    assert "reach" in str(e.value).lower()

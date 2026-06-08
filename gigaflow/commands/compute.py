@@ -14,6 +14,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from gigaflow import _fmt
 from gigaflow._http import api, auth_error_hint, unreachable_hint
 
+# Longer timeout for the synchronous compute POST so the client does not bail
+# (and re-POST, spawning a duplicate run) before the hosted gateway even
+# responds. Overridable via --timeout N or $GIGAFLOW_COMPUTE_TIMEOUT.
+COMPUTE_TIMEOUT = float(os.environ.get("GIGAFLOW_COMPUTE_TIMEOUT", "180"))
+
 _HINT = (
     "Hint: query the `trace_metrics` view — it has one row per trace with all Flow columns.\n"
     "      Run `gigaflow query --examples` to see example queries."
@@ -253,10 +258,18 @@ def _run_one(
     caller is expected to handle an empty dict gracefully.
     """
     status, resp = api(
-        base_url, "POST", f"/flow/{trace_id}", body, api_key=gigaflow_key
+        base_url, "POST", f"/flow/{trace_id}", body, api_key=gigaflow_key,
+        timeout=COMPUTE_TIMEOUT,
     )
     if status != 200:
+        if status in (502, 503, 504):
+            # Gateway timed out a long synchronous compute; the backend keeps
+            # going. Poll for the run instead of failing / re-POSTing.
+            return _poll_for_run(base_url, trace_id, gigaflow_key)
         if status is None:
+            reason = (resp or {}).get("error", "") if isinstance(resp, dict) else ""
+            if "timed out" in reason.lower() or "timeout" in reason.lower():
+                return _poll_for_run(base_url, trace_id, gigaflow_key)
             raise RuntimeError(unreachable_hint(base_url))
         if status in (401, 403):
             raise RuntimeError(auth_error_hint())
