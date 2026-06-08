@@ -127,10 +127,10 @@ def _handle_compute(args, base_url: str) -> None:
     # header. Both can be required at once on a hosted backend.
     openai_key = os.environ.get("OPENAI_API_KEY")
     if not openai_key:
-        _fmt.fail(
-            "OPENAI_API_KEY not set. Add it to gigaflow.env or export it before running."
+        _fmt.info(
+            "No OPENAI_API_KEY set — the hosted backend will use its platform key. "
+            "(Local/self-hosted backends may require one.)"
         )
-        sys.exit(1)
 
     gigaflow_key = getattr(args, "api_key", None)
 
@@ -187,7 +187,10 @@ def _handle_compute(args, base_url: str) -> None:
     # ── 3. Build the request body ────────────────────────────────────────────
     # "api_key" here is the OpenAI key the backend uses for its LLM calls — NOT
     # the gigaflow auth key (that rides in the Authorization header below).
-    body: dict = {"api_key": openai_key}
+    # Optional: when unset, the hosted backend falls back to its platform key.
+    body: dict = {}
+    if openai_key:
+        body["api_key"] = openai_key
     if args.model:
         body["model"] = args.model
     if args.k_threshold is not None:

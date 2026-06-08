@@ -77,3 +77,26 @@ def test_compute_argparser_has_timeout():
     C.register(sub)
     ns = p.parse_args(["compute", "SELECT 1", "--timeout", "42"])
     assert ns.timeout == 42.0
+
+
+def test_compute_no_openai_key_omits_from_body(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    seen = {}
+
+    def fake_api(base, method, path, body=None, **kw):
+        if path.startswith("/flow/"):
+            seen["body"] = body
+            return 200, {"metrics": {"groundedness": 0.5, "tool_consumption": 0.0}, "token_usage": {}}
+        if path == "/query/":
+            # selection + partition queries
+            if "run_id IS NOT NULL" in body["sql"]:
+                return 200, {"columns": ["trace_id"], "rows": []}
+            return 200, {"columns": ["trace_id"], "rows": [["t1"]]}
+        return 200, {}
+    monkeypatch.setattr(C, "api", fake_api)
+    import argparse
+    args = argparse.Namespace(sql="SELECT trace_id FROM trace_metrics", force=False,
+                              concurrency=1, model=None, k_threshold=None,
+                              cost_breakdown=False, timeout=None, api_key=None)
+    C._handle_compute(args, "http://b")
+    assert "api_key" not in seen["body"]   # OpenAI key omitted, not hard-failed
