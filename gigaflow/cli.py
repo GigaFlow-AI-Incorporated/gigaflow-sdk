@@ -42,9 +42,9 @@ from gigaflow.commands import (
 def _resolve_credential(flag, env_key, user_token, config_key):
     """Bearer credential precedence: explicit flag > env static > user token > config key.
 
-    The user token (a Supabase JWT from `gigaflow login`) is preferred over the
-    saved static config key, but an explicit --api-key or env key still wins so
-    self-host/CI overrides keep working.
+    The user token (the backend session token from `gigaflow login`) is preferred
+    over the saved static config key, but an explicit --api-key or env key still
+    wins so self-host/CI overrides keep working.
     """
     return flag or env_key or user_token or config_key or None
 
@@ -153,8 +153,8 @@ def main(argv=None):
     # (backend/CLAUDE.md). GIGAFLOW_API_KEY is the preferred general name now
     # that the whole API surface — not just Flow compute — is token-gated. Both
     # forward the same value as `Authorization: Bearer <key>`.
-    # user_token is the Supabase JWT from `gigaflow login`; it is preferred over
-    # the saved static config key, but explicit flags/env vars still win for CI.
+    # user_token is the backend session token from `gigaflow login`; it is preferred
+    # over the saved static config key, but explicit flags/env vars still win for CI.
     # Stashed back onto args so each handler can forward it to _http.api().
     user_token = _auth.access_token(base_url)
     args.api_key = _resolve_credential(
@@ -168,7 +168,7 @@ def main(argv=None):
     if args.api_key is None and getattr(args, "command", None) in _BACKEND_CMDS:
         # To stderr, not stdout: a stdout hint would corrupt machine-readable
         # output such as `gigaflow query --json`.
-        print("  You're not signed in. Run: gigaflow login  (opens your browser to sign in)", file=sys.stderr)
+        print("  You're not signed in. Run: gigaflow login  (sign in with your waitlist email)", file=sys.stderr)
 
     args.func(args, base_url)
 

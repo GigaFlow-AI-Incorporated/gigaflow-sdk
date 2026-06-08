@@ -93,8 +93,8 @@ def api(
 def auth_error_hint() -> str:
     """One-line, actionable message for a 401/403 from the backend."""
     return (
-        "Authentication failed — set GIGAFLOW_API_KEY, pass --api-key, "
-        "or run 'gigaflow setup'."
+        "Authentication failed — run 'gigaflow login' with your waitlist email, "
+        "or set GIGAFLOW_API_KEY / pass --api-key."
     )
 
 
