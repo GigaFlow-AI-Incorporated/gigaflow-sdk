@@ -147,10 +147,14 @@ def _pick_vendor():
     return vendor
 
 
+def _load_transform(filename: str) -> str:
+    ref = importlib.resources.files("gigaflow.transforms").joinpath(filename)
+    return ref.read_text(encoding="utf-8")
+
+
 def _load_default_transform() -> str:
     """Load the built-in Arize Phoenix transform config from the package."""
-    ref = importlib.resources.files("gigaflow.transforms").joinpath("arize_phoenix.yml")
-    return ref.read_text(encoding="utf-8")
+    return _load_transform("arize_phoenix.yml")
 
 
 def load_env_file(path: str) -> dict:
@@ -268,50 +272,44 @@ def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tu
 
 
 def run_wizard(base_url: str) -> dict | None:
-    """
-    Interactive wizard. Returns saved config dict on success, None on failure.
-
-    ``base_url`` is the already-resolved default (--backend / $GIGAFLOW_BACKEND_URL
-    / saved config / localhost); the wizard offers it as the default and lets the
-    user override it, then persists the chosen URL and optional API key.
-    """
     _fmt.header("GigaFlow Setup Wizard")
 
-    # ── Env file (optional) ───────────────────────────────────────────────────
     env_path = _fmt.prompt("Path to gigaflow.env (leave blank to enter values manually)")
-    if env_path:
-        env = load_env_file(env_path)
-        if env:
-            _fmt.ok(f"Loaded env file: {env_path}")
-    else:
-        env = {}
+    env = load_env_file(env_path) if env_path else {}
+    if env_path and env:
+        _fmt.ok(f"Loaded env file: {env_path}")
 
-    # ── Step 1: backend URL + API key ─────────────────────────────────────────
+    # Step 1: backend + key
     _fmt.section("Step 1: GigaFlow backend")
-    base_url = _fmt.prompt(
-        "Backend base URL", env.get("GIGAFLOW_BACKEND_URL", base_url)
-    ).rstrip("/")
-
-    # Optional gigaflow API key (forwarded as Authorization: Bearer <key>).
-    # Required by a hosted backend running with GIGAFLOW_DEV_MODE=false; leave
-    # blank for a local dev backend.
+    base_url = _fmt.prompt("Backend base URL", env.get("GIGAFLOW_BACKEND_URL", base_url)).rstrip("/")
     default_key = env.get("GIGAFLOW_API_KEY", _config.get("api_key", "") or "")
-    api_key = _fmt.prompt(
-        "GigaFlow API key (blank for none / local dev mode)", default_key
-    ) or None
-
+    api_key = _fmt.prompt("GigaFlow API key (blank for none / local dev mode)", default_key) or None
     if not check_backend(base_url, api_key):
         return None
 
-    # ── Step 2: project ───────────────────────────────────────────────────────
-    _fmt.section("Step 2: Project")
-    project_name = _fmt.prompt("Project name", env.get("GIGAFLOW_PROJECT_NAME", "arize-phoenix-project"))
+    # Step 2: vendor
+    vendor = _pick_vendor()
+    if vendor is None:
+        return None
+
+    # Step 3: connection (vendor-specific)
+    conn = vendor.collect(env)
+
+    # Step 4: project (auto-suggest name from the vendor project where present)
+    _fmt.section("Step 4: Project")
+    print()
+    print("  GigaFlow groups your traces under a *project* (a container in GigaFlow).")
+    print()
+    suggested = conn.get("vendor_project_name") or env.get("GIGAFLOW_PROJECT_NAME") or f"{vendor.key}-project"
+    project_name = _fmt.prompt("GigaFlow project name", suggested)
     project_id = create_project(base_url, project_name, api_key)
     if not project_id:
         return None
 
+    # Step 5: transform (vendor built-in by default)
+    label = vendor.label.split("(")[0].strip()
     transform_path = _fmt.prompt(
-        "Path to transform.yml (leave blank for built-in Arize Phoenix config)",
+        f"Path to transform.yml (leave blank for built-in {label} config)",
         env.get("GIGAFLOW_TRANSFORM_YML", ""),
     )
     if transform_path:
@@ -323,59 +321,34 @@ def run_wizard(base_url: str) -> dict | None:
             _fmt.fail(f"Could not read transform file: {e}")
             return None
     else:
-        yaml_content = ARIZE_TRANSFORM_YAML
-        _fmt.info("Using built-in Arize Phoenix transform config")
-
+        yaml_content = _load_transform(vendor.transform_file)
+        _fmt.info(f"Using built-in {vendor.key} transform config")
+        if vendor.key == "wb_weave":
+            _fmt.info("Note: the W&B Weave transform is a TEMPLATE — verify the preview below.")
     if not upload_transform(base_url, project_id, yaml_content, api_key):
         return None
 
-    # ── Step 3: Arize Phoenix DB ──────────────────────────────────────────────
-    _fmt.section("Step 3: Arize Phoenix database")
-    print()
-    print("  Enter the connection details for the PostgreSQL database")
-    print("  that Arize Phoenix writes to.")
-    print()
-    print("  Tip: if GigaFlow is running in Docker (the default),")
-    print("  use 'host.docker.internal' to reach the host machine.")
-    print()
-    print("  Find the Arize DB port with:")
-    print("    docker ps --filter name=arize_agent_example-db --format '{{.Ports}}'")
-    print()
-
-    host  = _fmt.prompt("Host", env.get("GIGAFLOW_DB_HOST", "host.docker.internal"))
-    port  = _fmt.prompt("Port", env.get("GIGAFLOW_DB_PORT", ""), required=True)
-    user  = _fmt.prompt("User", env.get("GIGAFLOW_DB_USER", "postgres"))
-
-    if env.get("GIGAFLOW_DB_PASSWORD"):
-        password = env["GIGAFLOW_DB_PASSWORD"]
-        _fmt.info("Password: [from env file]")
-    else:
-        password = _fmt.prompt_password("Password")
-
-    db    = _fmt.prompt("Database",     env.get("GIGAFLOW_DB_NAME", "postgres"))
-    table = _fmt.prompt("Source table", env.get("GIGAFLOW_DB_TABLE", "spans"))
-
-    connection_url = f"postgresql://{user}:{password}@{host}:{port}/{db}"
-
-    # ── Step 4: register + sync ───────────────────────────────────────────────
-    _fmt.section("Step 4: Register datasource & sync")
-    datasource_id = register_datasource(base_url, project_id, connection_url, table, api_key)
+    # Step 6: register + sync + preview
+    _fmt.section("Step 6: Register datasource & sync")
+    datasource_id = register_datasource(
+        base_url, project_id, conn["connection_url"], conn["source_table"],
+        api_key=conn["api_key"], source_type=vendor.key, name=vendor.key,
+    )
     if not datasource_id:
         return None
-
     result = do_sync(base_url, datasource_id, api_key)
     if result is None:
         return None
 
     synced_traces, _ = result
     if synced_traces > 0:
-        _show_span_preview(base_url, project_id, api_key)
+        ok = _preview_and_confirm(base_url, project_id, api_key)
+        if not ok:
+            _fmt.info("You can supply a custom transform and re-run:")
+            _fmt.info("  gigaflow config clear  &&  gigaflow setup")
+            _fmt.info("  (point the transform prompt at your own transform.yml)")
 
-    config: dict = {
-        "backend_url": base_url,
-        "project_id": project_id,
-        "datasource_id": datasource_id,
-    }
+    config: dict = {"backend_url": base_url, "project_id": project_id, "datasource_id": datasource_id}
     if api_key:
         config["api_key"] = api_key
     _config.save(config)
