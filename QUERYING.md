@@ -213,20 +213,3 @@ gigaflow compute "SELECT trace_id FROM trace_metrics WHERE groundedness < 0.4 AN
 gigaflow compute "SELECT trace_id FROM trace_metrics" --force
 ```
 
----
-
-## Direct database access
-
-`gigaflow query` is rate-limited and SELECT-only. For BI tools, dashboards, or complex joins against raw tables (`spans`, `flow_atoms`, etc.), connect directly to Postgres:
-
-```bash
-psql $GIGAFLOW_DB_URL
-
-# Inspect the view definition
-\d trace_metrics
-
-# Full schema
-\dt
-```
-
-The `GIGAFLOW_DB_URL` environment variable is set in `gigaflow.env` when the backend is running via Docker Compose.

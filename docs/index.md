@@ -20,8 +20,6 @@ pip install gigaflow
 
 ```bash
 export GIGAFLOW_API_KEY=<your GigaFlow API key>
-# Backend defaults to the hosted service (https://api.gigaflow.io/api/v1).
-# For local dev: export GIGAFLOW_BACKEND_URL=http://localhost:8000/api/v1
 ```
 
 `gigaflow login` (browser sign-in) or `gigaflow setup` persist these to

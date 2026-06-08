@@ -15,11 +15,6 @@ does the compute; this CLI drives ingest → compute → inspection.
 ## Install
 
 ```bash
-# From source (current):
-git clone https://github.com/GigaFlow-AI-Incorporated/gigaflow-sdk
-cd gigaflow-sdk && pip install -e .
-
-# From PyPI (once published):
 pip install gigaflow
 ```
 
@@ -35,13 +30,12 @@ Two independent credentials:
 | **OpenAI API key** | `OPENAI_API_KEY` | `compute` request body | Required by the CLI's `compute` command. *On the hosted service, Flow LLM calls currently run on GigaFlow's platform key; per-customer key billing is on the roadmap.* |
 
 ```bash
-export GIGAFLOW_BACKEND_URL=https://api.gigaflow.io/api/v1
 export GIGAFLOW_API_KEY=<your GigaFlow API key>
 export OPENAI_API_KEY=sk-...
 ```
 
 **Resolution order** (first set wins):
-- Backend URL: `--backend <url>` > `$GIGAFLOW_BACKEND_URL` > saved config > `http://localhost:8000/api/v1`
+- Backend URL: `--backend <url>` > `$GIGAFLOW_BACKEND_URL` > saved config > the hosted service (`https://api.gigaflow.io/api/v1`)
 - API key: `--api-key <key>` > `$GIGAFLOW_API_KEY` > saved config > none
 
 `gigaflow setup` also prompts for these and persists them to `~/.gigaflow/config.json`,
@@ -131,8 +125,3 @@ curl -X PUT "$GIGAFLOW_BACKEND_URL/projects/<project_id>/transform" \
 Re-`sync` after changing a transform to reclassify spans.
 
 Full grammar + the per-project upload flow: [docs/transforms.md](docs/transforms.md).
-
-## Publish to PyPI
-
-See the release steps in [docs/publishing.md](docs/publishing.md) (token reserved
-in the company vault; CI publish is wired in the infra repo).

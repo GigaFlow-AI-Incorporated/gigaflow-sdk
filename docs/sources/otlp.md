@@ -6,8 +6,6 @@ GigaFlow's OTLP receiver. No datasource/`sync` — spans arrive in real time.
 ## Endpoint
 - **HTTP:** `POST https://api.gigaflow.io/v1/traces` (accepts `application/json`
   and `application/x-protobuf`). Logs: `POST .../v1/logs`.
-- gRPC (`:4317`) runs locally / under docker-compose but is **not exposed on the
-  hosted endpoint** yet — use HTTP in production.
 
 ## 1. Create a project + mint an OTLP token
 ```bash
@@ -36,5 +34,3 @@ Set the project's transform to match your exporter's span shape (`PUT
 gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 gigaflow inspect <trace_id>
 ```
-
-See the backend's `docs/otlp-quickstart.md` for exporter snippets per framework.

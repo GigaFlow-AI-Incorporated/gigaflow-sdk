@@ -47,7 +47,6 @@ nav:
       - Direct OTLP: sources/otlp.md
   - Querying: querying.md
   - Transform configs: transforms.md
-  - Publishing: publishing.md
   - Changelog: changelog.md
 
 markdown_extensions:
