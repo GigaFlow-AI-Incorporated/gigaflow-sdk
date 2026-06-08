@@ -29,6 +29,14 @@ class ComputeStillRunning(RuntimeError):  # noqa: N818 - "Running", not an error
     """Raised when Flow is still computing server-side past the poll deadline."""
 
 
+def _to_float(value) -> float:
+    """Coerce a metric value (possibly a string from /query/ JSON) to float."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5):
     """Poll trace_metrics until this trace has a run_id, or raise ComputeStillRunning."""
     sql = (
@@ -47,8 +55,11 @@ def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5
 
                 def col(name, _cols=cols, _row=row):
                     return _row[_cols.index(name)] if name in _cols else None
-                return (col("groundedness") or 0.0, col("tool_consumption") or 0.0,
-                        {"total_cost_usd": col("total_cost_usd")})
+                # The /query/ JSON returns numeric columns as strings (e.g.
+                # total_cost_usd = "0.0529"); coerce so downstream :.2f/:.4f
+                # formatting in the success + cost-summary lines doesn't crash.
+                return (_to_float(col("groundedness")), _to_float(col("tool_consumption")),
+                        {"total_cost_usd": _to_float(col("total_cost_usd"))})
         time.sleep(interval_s)
     raise ComputeStillRunning(
         f"Flow for {trace_id[:8]}… is still computing on the server after "
@@ -321,7 +332,7 @@ def _print_cost_summary(token_usage: dict) -> None:
     """
     if not token_usage:
         return
-    total_cost = token_usage.get("total_cost_usd") or 0.0
+    total_cost = _to_float(token_usage.get("total_cost_usd"))
     total_tokens = token_usage.get("total_tokens") or 0
     total_requests = token_usage.get("total_requests") or 0
     print(

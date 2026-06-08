@@ -6,6 +6,25 @@ def _metrics_row(run_id="r1", g=0.5, tc=0.1, cost="0.05"):
             "rows": [[run_id, g, tc, cost]]}
 
 
+def test_poll_for_run_coerces_string_metrics_to_float(monkeypatch):
+    # The /query/ JSON returns numeric columns as strings; the poll path must
+    # coerce them so the success line (:.2f) and cost summary (:.4f) don't crash.
+    def fake_api(base, method, path, body=None, **kw):
+        return 200, {
+            "columns": ["run_id", "groundedness", "tool_consumption", "total_cost_usd"],
+            "rows": [["r1", "0.5", "0.32", "0.052864"]],  # all strings
+        }
+    monkeypatch.setattr(C, "api", fake_api)
+    monkeypatch.setattr(C.time, "sleep", lambda *_: None)
+    g, tc, usage = C._poll_for_run("http://b", "t1", None, deadline_s=30, interval_s=1)
+    assert isinstance(g, float) and g == 0.5
+    assert isinstance(tc, float) and tc == 0.32
+    assert isinstance(usage["total_cost_usd"], float)
+    # The formatting that crashed in the live run must now succeed:
+    f"groundedness={g:.2f}"
+    C._print_cost_summary(usage)  # must not raise
+
+
 def test_poll_for_run_returns_metrics_when_run_appears(monkeypatch):
     calls = {"n": 0}
 
