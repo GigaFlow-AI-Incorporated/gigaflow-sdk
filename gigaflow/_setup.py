@@ -15,6 +15,8 @@ class VendorSpec:
     key: str            # backend source_type
     label: str          # menu label
     transform_file: str  # bundled transform filename in gigaflow/transforms/
+    desc: str           # one-line menu description
+    docs_url: str       # per-vendor setup docs
     # collect(env) -> dict with keys:
     #   connection_url, source_table, api_key (str|None),
     #   vendor_project_name (str|None — used to default the GigaFlow project name)
@@ -109,11 +111,21 @@ def collect_wb_weave(env: dict) -> dict:
 
 
 VENDORS: list[VendorSpec] = [
-    VendorSpec("arize_phoenix", "Arize Phoenix   (Postgres)", "arize_phoenix.yml", collect_arize_phoenix),
-    VendorSpec("braintrust",    "Braintrust      (REST API)", "braintrust.yml",    collect_braintrust),
-    VendorSpec("logfire",       "Logfire         (REST API)", "logfire.yml",       collect_logfire),
-    VendorSpec("mlflow",        "MLflow          (REST API)", "mlflow.yml",        collect_mlflow),
-    VendorSpec("wb_weave",      "W&B Weave       (REST API)", "wb_weave.yml",      collect_wb_weave),
+    VendorSpec("arize_phoenix", "Arize Phoenix   (Postgres)", "arize_phoenix.yml",
+               "Postgres database Arize Phoenix writes spans to",
+               "https://docs.gigaflow.io/sources/arize-phoenix/", collect_arize_phoenix),
+    VendorSpec("braintrust", "Braintrust      (REST API)", "braintrust.yml",
+               "Braintrust REST API",
+               "https://docs.gigaflow.io/sources/braintrust/", collect_braintrust),
+    VendorSpec("logfire", "Logfire         (REST API)", "logfire.yml",
+               "Pydantic Logfire REST API",
+               "https://docs.gigaflow.io/sources/logfire/", collect_logfire),
+    VendorSpec("mlflow", "MLflow          (REST API)", "mlflow.yml",
+               "MLflow tracking server REST API",
+               "https://docs.gigaflow.io/sources/mlflow/", collect_mlflow),
+    VendorSpec("wb_weave", "W&B Weave       (REST API)", "wb_weave.yml",
+               "Weights & Biases Weave trace server",
+               "https://docs.gigaflow.io/sources/wb-weave/", collect_wb_weave),
 ]
 
 

@@ -277,3 +277,9 @@ def test_choose_config_source_loads_env_file(monkeypatch, tmp_path):
     _install_prompts(monkeypatch, ["2", str(env_file)])  # choose file, then path
     env = _setup._choose_config_source()
     assert env["GIGAFLOW_PROJECT_NAME"] == "from-file"
+
+
+def test_every_vendor_has_desc_and_docs_url():
+    for v in _setup.VENDORS:
+        assert v.desc and isinstance(v.desc, str)
+        assert v.docs_url.startswith("https://docs.gigaflow.io/sources/")
