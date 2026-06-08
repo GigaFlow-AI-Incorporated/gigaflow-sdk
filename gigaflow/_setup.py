@@ -1,9 +1,47 @@
 """Interactive setup wizard: project creation, transform upload, datasource registration, sync."""
 
 import importlib.resources
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from gigaflow import _config, _fmt
 from gigaflow._http import api
+
+
+@dataclass(frozen=True)
+class VendorSpec:
+    key: str            # backend source_type
+    label: str          # menu label
+    transform_file: str  # bundled transform filename in gigaflow/transforms/
+    # collect(env) -> dict with keys:
+    #   connection_url, source_table, api_key (str|None),
+    #   vendor_project_name (str|None — used to default the GigaFlow project name)
+    collect: Callable[[dict], dict]
+
+
+def _todo_collect(env: dict) -> dict:  # replaced in a later task
+    raise NotImplementedError
+
+
+VENDORS: list[VendorSpec] = [
+    VendorSpec("arize_phoenix", "Arize Phoenix   (Postgres)",   "arize_phoenix.yml", _todo_collect),
+    VendorSpec("braintrust",    "Braintrust      (REST API)",   "braintrust.yml",    _todo_collect),
+    VendorSpec("logfire",       "Logfire         (REST API)",   "logfire.yml",       _todo_collect),
+    VendorSpec("mlflow",        "MLflow          (REST API)",   "mlflow.yml",        _todo_collect),
+    VendorSpec("wb_weave",      "W&B Weave       (REST API)",   "wb_weave.yml",      _todo_collect),
+]
+
+
+def vendor_by_choice(choice: str) -> VendorSpec | None:
+    """Map a 1-indexed menu string to a VendorSpec. Blank → Arize Phoenix."""
+    choice = (choice or "").strip()
+    if choice == "":
+        return VENDORS[0]
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(VENDORS):
+            return VENDORS[idx]
+    return None
 
 
 def _load_default_transform() -> str:
