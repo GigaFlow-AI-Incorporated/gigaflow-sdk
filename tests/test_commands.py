@@ -10,7 +10,10 @@ Every test:
 import json
 import os
 import subprocess
+import types
 from pathlib import Path
+
+import pytest
 
 from _constants import GIGAFLOW, MOCK_DATASOURCE_ID, MOCK_PROJECT_ID, MOCK_TRACE_ID
 from conftest import _MockAPIHandler
@@ -577,5 +580,25 @@ class TestQuery:
             configured_env,
         )
         assert result.returncode != 0
+
+
+# ── unit tests: setup auth gate ───────────────────────────────────────────────
+
+class TestSetupAuthGate:
+    """Fast unit tests for the ensure_authenticated gate in _handle_setup."""
+
+    def test_setup_exits_when_not_authenticated(self, monkeypatch, capsys):
+        """When ensure_authenticated returns None, _handle_setup should exit(1) with a sign-in message."""
+        import gigaflow.commands.setup as setup_cmd
+        monkeypatch.setattr(setup_cmd._config, "load", lambda: {})
+        monkeypatch.setattr(setup_cmd, "ensure_authenticated", lambda base, key: None)
+        monkeypatch.setattr(
+            setup_cmd, "run_wizard",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("wizard should not run")),
+        )
+        with pytest.raises(SystemExit) as exc:
+            setup_cmd._handle_setup(types.SimpleNamespace(api_key=None), "https://b/api/v1")
+        assert exc.value.code == 1
+        assert "Sign-in required" in capsys.readouterr().err
 
 
