@@ -16,14 +16,14 @@ drives **ingest → compute → inspection**.
 pip install gigaflow
 ```
 
-## Configure
+## Sign in
 
 ```bash
-export GIGAFLOW_API_KEY=<your GigaFlow API key>
+gigaflow login
 ```
 
-`gigaflow login` (browser sign-in) or `gigaflow setup` persist these to
-`~/.gigaflow/config.json`, so the exports are optional on later runs.
+`gigaflow login` opens your browser to sign in and stores your credentials in
+`~/.gigaflow/config.json`, so you only do it once.
 
 ## End-to-end in three commands
 

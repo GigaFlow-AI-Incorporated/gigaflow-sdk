@@ -20,26 +20,27 @@ pip install gigaflow
 
 The CLI is standard-library only — nothing else to pull in.
 
-## Configure the backend + key
+## Sign in
 
-Two independent credentials:
-
-| Credential | Env var | Where it goes | Purpose |
-|---|---|---|---|
-| **GigaFlow API key** | `GIGAFLOW_API_KEY` | `Authorization: Bearer` header | Authenticates you to the GigaFlow backend. Required on any hosted backend. |
-| **OpenAI API key** | `OPENAI_API_KEY` | `compute` request body | Required by the CLI's `compute` command. *On the hosted service, Flow LLM calls currently run on GigaFlow's platform key; per-customer key billing is on the roadmap.* |
+Run `gigaflow login` — it opens your browser to sign in, then stores your
+credentials in `~/.gigaflow/config.json`:
 
 ```bash
-export GIGAFLOW_API_KEY=<your GigaFlow API key>
+gigaflow login
+```
+
+Flow compute additionally needs an **OpenAI key** (sent only by the `compute`
+command):
+
+```bash
 export OPENAI_API_KEY=sk-...
 ```
 
-**Resolution order** (first set wins):
-- Backend URL: `--backend <url>` > `$GIGAFLOW_BACKEND_URL` > saved config > the hosted service (`https://api.gigaflow.io/api/v1`)
-- API key: `--api-key <key>` > `$GIGAFLOW_API_KEY` > saved config > none
+*On the hosted service, Flow LLM calls currently run on GigaFlow's platform key;
+per-customer key billing is on the roadmap.*
 
-`gigaflow setup` also prompts for these and persists them to `~/.gigaflow/config.json`,
-so the exports are optional on later runs.
+The CLI talks to the hosted backend (`https://api.gigaflow.io/api/v1`) by default;
+point it elsewhere with `--backend <url>` or `$GIGAFLOW_BACKEND_URL`.
 
 ---
 
