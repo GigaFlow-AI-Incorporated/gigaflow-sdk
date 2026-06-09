@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from gigaflow import _config, _fmt
 from gigaflow._http import api
 
+# A full sync reads every span from the source DB and can take much longer than
+# a normal API call, so it gets a more generous read timeout than the 30 s
+# default in _http (which is tuned for quick request/response calls).
+SYNC_TIMEOUT = 120.0
+
 GIGAFLOW_ENV_DOCS = "https://docs.gigaflow.io/gigaflow-env/"
 
 
@@ -265,10 +270,26 @@ def register_datasource(base_url: str, project_id: str, connection_url: str, sou
 
 
 def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tuple[int, int] | None:
-    status, resp = api(base_url, "POST", f"/datasources/{datasource_id}/sync", api_key=_resolve_key(api_key))
+    # The first full sync pulls every span from the source database, so it can
+    # take a while — tell the user something is happening instead of letting the
+    # blocking request look like a frozen prompt. ``flush=True`` so the line
+    # appears before urllib blocks.
+    print("     Syncing… (this can take a minute on the first run)", flush=True)
+    # A full sync is far slower than a normal API call; the default 30 s read
+    # timeout was too short and surfaced as a cryptic "read operation timed out".
+    status, resp = api(
+        base_url, "POST", f"/datasources/{datasource_id}/sync",
+        api_key=_resolve_key(api_key), timeout=SYNC_TIMEOUT,
+    )
     if status != 200:
-        _fmt.fail(f"Sync failed ({status}): {resp.get('detail', resp)}")
         detail = str(resp.get("detail", ""))
+        reason = str(resp.get("error", "")).lower()
+        if status is None and ("timed out" in reason or "timeout" in reason):
+            _fmt.fail("Sync timed out — the backend took too long to respond.")
+            _fmt.info("The first sync of a large dataset can exceed the time limit.")
+            _fmt.info("The sync may still be running on the backend; re-run 'gigaflow sync' to check.")
+            return None
+        _fmt.fail(f"Sync failed ({status}): {resp.get('detail', resp)}")
         if "connect" in detail.lower() or status == 502:
             _fmt.info("Could not connect to the source database.")
             _fmt.info("If the source database runs in Docker, try 'host.docker.internal' as the host.")
