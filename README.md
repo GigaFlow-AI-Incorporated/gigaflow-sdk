@@ -22,12 +22,16 @@ The CLI is standard-library only — nothing else to pull in.
 
 ## Sign in
 
-Run `gigaflow login` — it opens your browser to sign in, then stores your
-credentials in `~/.gigaflow/config.json`:
+Run `gigaflow login` — it signs you in with your waitlist email and stores your
+credentials in `~/.gigaflow/config.json`, so you only do it once:
 
 ```bash
 gigaflow login
 ```
+
+`gigaflow setup` also signs you in automatically, so a fresh user can go straight
+to setup — no API key or backend URL needed; the hosted service
+(`https://api.gigaflow.io/api/v1`) is the default.
 
 Flow compute additionally needs an **OpenAI key** (sent only by the `compute`
 command):
@@ -39,8 +43,18 @@ export OPENAI_API_KEY=sk-...
 *On the hosted service, Flow LLM calls currently run on GigaFlow's platform key;
 per-customer key billing is on the roadmap.*
 
-The CLI talks to the hosted backend (`https://api.gigaflow.io/api/v1`) by default;
-point it elsewhere with `--backend <url>` or `$GIGAFLOW_BACKEND_URL`.
+For repeatable or CI setups, see the [gigaflow.env reference](https://docs.gigaflow.io/gigaflow-env/).
+
+**Developer / self-hosted overrides** (hosted users don't need these):
+
+| Env var | Purpose |
+|---|---|
+| `GIGAFLOW_BACKEND_URL` | Point the CLI at a non-default backend. Same as `--backend`. |
+| `GIGAFLOW_API_KEY` | Static bearer key, bypassing interactive login. Same as `--api-key`. |
+
+**Resolution order** (first set wins):
+- Backend URL: `--backend <url>` > `$GIGAFLOW_BACKEND_URL` > saved config > the hosted service (`https://api.gigaflow.io/api/v1`)
+- API key: `--api-key <key>` > `$GIGAFLOW_API_KEY` > saved config > none
 
 ---
 

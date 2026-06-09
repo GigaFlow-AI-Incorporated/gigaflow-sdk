@@ -22,6 +22,7 @@ import os
 import sys
 
 from gigaflow import _auth, _config
+from gigaflow._config import DEFAULT_BACKEND_URL
 from gigaflow._setup import load_env_file
 from gigaflow.commands import (
     auth as auth_cmd,
@@ -47,11 +48,6 @@ def _resolve_credential(flag, env_key, user_token, config_key):
     wins so self-host/CI overrides keep working.
     """
     return flag or env_key or user_token or config_key or None
-
-
-# Hosted backend — the default so `pip install gigaflow && gigaflow login` works
-# out of the box. Local dev overrides via --backend / $GIGAFLOW_BACKEND_URL.
-DEFAULT_BACKEND_URL = "https://api.gigaflow.io/api/v1"
 
 
 def _resolve_backend_url(flag, env_val, config_val):

@@ -26,3 +26,35 @@ def test_login_command_not_on_allowlist_opens_book_demo(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "book a demo" in out.lower()
     assert opened["url"] == "https://gigaflow.io/?book-demo"
+
+
+def test_ensure_authenticated_returns_dev_key_without_login(monkeypatch):
+    # An explicit dev key short-circuits — never prompts, never reads credentials.
+    called = {}
+    monkeypatch.setattr(auth_cmd, "interactive_login", lambda base: called.setdefault("login", True))
+    token = auth_cmd.ensure_authenticated("https://b/api/v1", api_key="dev-key")
+    assert token == "dev-key"
+    assert "login" not in called
+
+
+def test_ensure_authenticated_uses_existing_token(monkeypatch):
+    monkeypatch.setattr(auth_cmd._auth, "access_token", lambda base: "stored-jwt")
+    monkeypatch.setattr(auth_cmd, "interactive_login",
+                        lambda base: (_ for _ in ()).throw(AssertionError("should not log in")))
+    token = auth_cmd.ensure_authenticated("https://b/api/v1", api_key=None)
+    assert token == "stored-jwt"
+
+
+def test_ensure_authenticated_logs_in_when_no_credential(monkeypatch):
+    _it = iter([None, "fresh-jwt"])
+    monkeypatch.setattr(auth_cmd._auth, "access_token",
+                        lambda base: next(_it))  # before login: None, after: fresh
+    monkeypatch.setattr(auth_cmd, "interactive_login", lambda base: True)
+    token = auth_cmd.ensure_authenticated("https://b/api/v1", api_key=None)
+    assert token == "fresh-jwt"
+
+
+def test_ensure_authenticated_returns_none_when_login_fails(monkeypatch):
+    monkeypatch.setattr(auth_cmd._auth, "access_token", lambda base: None)
+    monkeypatch.setattr(auth_cmd, "interactive_login", lambda base: False)
+    assert auth_cmd.ensure_authenticated("https://b/api/v1", api_key=None) is None

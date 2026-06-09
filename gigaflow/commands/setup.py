@@ -4,6 +4,7 @@ import sys
 
 from gigaflow import _config, _fmt
 from gigaflow._setup import do_sync, run_wizard
+from gigaflow.commands.auth import ensure_authenticated
 
 
 def register(sub) -> None:
@@ -18,7 +19,11 @@ def _handle_setup(args, base_url: str) -> None:
         print("  To reconfigure, run:  gigaflow config clear  then  gigaflow setup")
         print()
         return
-    result = run_wizard(base_url)
+    api_key = ensure_authenticated(base_url, getattr(args, "api_key", None))
+    if not api_key:
+        _fmt.fail("Sign-in required to run setup. Run:  gigaflow login")
+        sys.exit(1)
+    result = run_wizard(base_url, api_key)
     if result is None:
         sys.exit(1)
     _fmt.section("Next steps")

@@ -22,8 +22,12 @@ pip install gigaflow
 gigaflow login
 ```
 
-`gigaflow login` opens your browser to sign in and stores your credentials in
-`~/.gigaflow/config.json`, so you only do it once.
+`gigaflow login` signs you in with your waitlist email and stores your credentials
+in `~/.gigaflow/config.json`, so you only do it once. `gigaflow setup` also signs
+you in automatically — no API key or backend URL needed, the hosted service is the
+default.
+
+For repeatable or CI setups, see [gigaflow.env](gigaflow-env.md).
 
 ## End-to-end in three commands
 
