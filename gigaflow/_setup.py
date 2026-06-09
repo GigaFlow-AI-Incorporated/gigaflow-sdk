@@ -45,8 +45,9 @@ def vendor_by_choice(choice: str) -> VendorSpec | None:
 def collect_arize_phoenix(env: dict) -> dict:
     _fmt.section("Connection: Arize Phoenix database")
     print()
-    print("  Enter the PostgreSQL connection Arize Phoenix writes to.")
-    print("  Tip: if GigaFlow runs in Docker, use 'host.docker.internal'.")
+    print("  GigaFlow reads your traces straight from Arize Phoenix's PostgreSQL.")
+    print("  Enter how to reach that database.")
+    print("  Tip: find the port with  docker compose port db 5432")
     print()
     host = _fmt.prompt("Host", env.get("GIGAFLOW_DB_HOST", "host.docker.internal"))
     port = _fmt.prompt("Port", env.get("GIGAFLOW_DB_PORT", ""), required=True)
@@ -291,8 +292,8 @@ def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tu
             return None
         _fmt.fail(f"Sync failed ({status}): {resp.get('detail', resp)}")
         if "connect" in detail.lower() or status == 502:
-            _fmt.info("Could not connect to the source database.")
-            _fmt.info("If the source database runs in Docker, try 'host.docker.internal' as the host.")
+            _fmt.info("Could not connect to Arize Phoenix's database at the host/port you gave.")
+            _fmt.info("If you're running everything locally with Docker, 'host.docker.internal' often reaches it.")
         return None
     synced_traces = resp.get("synced_traces", 0)
     synced_spans = resp.get("synced_spans", 0)

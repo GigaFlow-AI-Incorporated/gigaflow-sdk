@@ -47,7 +47,8 @@ docker compose port db 5432
 # e.g. 0.0.0.0:61219->5432/tcp  →  use port 61219
 ```
 
-If GigaFlow is running in Docker (the default), use `host.docker.internal` as the host.
+For the host, point at wherever Arize Phoenix's database lives. If you're running
+everything locally with Docker, `host.docker.internal` usually reaches it.
 
 ---
 
