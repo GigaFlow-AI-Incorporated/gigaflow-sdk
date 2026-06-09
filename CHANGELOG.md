@@ -5,6 +5,34 @@ All notable changes to the `gigaflow` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-09
+
+### Added
+
+- **`gigaflow ingest <trace.json>` — one command from an OTel export to a Flow
+  viewer link.** Upload a local OTLP/JSON envelope or flat span array (`-` reads
+  stdin); the backend auto-provisions a project, auto-detects the exporter, and
+  runs Flow analysis in the background while the CLI polls and then prints/opens
+  the `/flow/{trace_id}` viewer. No vendor account, datasource, or token minting
+  needed. Flags: `--exporter`, `--label`, `--no-wait`, `--no-browser`.
+  Unanalysable pastes surface the backend's typed rejection reasons verbatim.
+- **`gigaflow setup` connection preflight.** The wizard now tests the vendor
+  connection before registering, with an interactive [r]etry / [e]dit /
+  [q] save-&-quit loop; config is always saved so `gigaflow sync` can be
+  retried later without re-running setup.
+
+### Changed
+
+- **`gigaflow sync` prints direct per-trace viewer links** for the newest synced
+  traces (capped at 5) instead of only the dashboard root.
+
+## [0.4.3] - 2026-06-09
+
+### Changed
+
+- Vendor onboarding docs decoupled from the dev/API flow; Arize host prompt
+  reframed around Phoenix's database rather than gigaflow.
+
 ## [0.4.2] - 2026-06-09
 
 ### Fixed
