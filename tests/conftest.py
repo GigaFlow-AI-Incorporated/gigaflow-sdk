@@ -25,6 +25,7 @@ import pytest
 from _constants import (
     CLI_DIR,
     MOCK_DATASOURCE_ID,
+    MOCK_FLOW_RUN_ID,
     MOCK_PROJECT_ID,
     MOCK_SPAN_ID,
     MOCK_TRACE_ID,
@@ -57,6 +58,8 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
     last_datasource_source_type = None
     last_datasource_api_key = None
     last_datasource_auth_header: str | None = None
+    last_ingest_body: dict = {}
+    ingest_status_polls: int = 0
 
     def log_message(self, *args):  # silence request logs during tests
         pass
@@ -78,6 +81,14 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
     def _404(self):
         self.send_response(404)
         self.end_headers()
+
+    def _json(self, status: int, body: dict):
+        data = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _maybe_reject(self) -> bool:
         """Simulate an auth failure when the caller sends a magic bearer token.
@@ -156,6 +167,12 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
                     },
                 ])
 
+        elif p == f"/api/v1/ingest/otel/status/{MOCK_FLOW_RUN_ID}":
+            # First poll: still running; second poll onwards: complete.
+            _MockAPIHandler.ingest_status_polls += 1
+            state = "running" if _MockAPIHandler.ingest_status_polls < 2 else "complete"
+            self._ok({"status": state, "viewer_url": f"/flow/{MOCK_TRACE_ID}"})
+
         elif p == "/api/v1/projects/":
             self._ok({"projects": [{
                 "project_id": MOCK_PROJECT_ID,
@@ -227,6 +244,41 @@ class _MockAPIHandler(BaseHTTPRequestHandler):
                     ],
                     "row_count": 2,
                     "truncated": False,
+                })
+
+        elif p == "/api/v1/ingest/otel":
+            try:
+                body = json.loads(raw) if raw else {}
+            except Exception:
+                body = {}
+            _MockAPIHandler.last_ingest_body = body
+            blob = body.get("blob")
+            # Magic blobs let subprocess tests drive each response branch:
+            #   {"_mock": "reject"}    → 422 typed rejection (no trace written)
+            #   {"_mock": "duplicate"} → 200 already_ingested
+            #   anything else          → 202 queued
+            if blob == {"_mock": "reject"}:
+                self._json(422, {
+                    "reason": "no_spans",
+                    "message": "The pasted blob contained no spans to analyse.",
+                    "detected_exporter": None,
+                })
+            elif blob == {"_mock": "duplicate"}:
+                self._json(200, {
+                    "trace_id": MOCK_TRACE_ID,
+                    "flow_run_id": MOCK_FLOW_RUN_ID,
+                    "status": "complete",
+                    "viewer_url": f"/flow/{MOCK_TRACE_ID}",
+                    "detected_exporter": "logfire",
+                    "already_ingested": True,
+                })
+            else:
+                self._json(202, {
+                    "trace_id": MOCK_TRACE_ID,
+                    "flow_run_id": MOCK_FLOW_RUN_ID,
+                    "status": "queued",
+                    "viewer_url": f"/flow/{MOCK_TRACE_ID}",
+                    "detected_exporter": "logfire",
                 })
 
         elif p == "/api/v1/supplement/claude_code":
