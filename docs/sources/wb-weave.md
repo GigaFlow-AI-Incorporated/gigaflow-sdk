@@ -1,37 +1,40 @@
 # Weights & Biases — Weave
 
-GigaFlow reads Weave calls via the W&B trace-server API. A template transform ships as `gigaflow/transforms/wb_weave.yml` — leave the transform blank in `gigaflow setup` to use it, but you'll likely need to tailor filter rules to your op names (Weave has no structural span-type field).
+GigaFlow reads Weave calls via the W&B trace-server API. A template transform
+(`wb_weave.yml`) ships, but you'll likely tailor its filter rules to your op names
+(Weave has no structural span-type field).
 
-## Prerequisites
-- `WANDB_API_KEY` (wandb.ai → Settings → API keys) — sent as HTTP Basic `api:<key>`.
+## What you'll need
+- A `WANDB_API_KEY` (wandb.ai → Settings → API keys).
 - Your Weave project id as **`entity/project`** (e.g. `my-team/my-agent`).
 - Base URL `https://trace.wandb.ai` (default; override for self-hosted).
 
-## Connect (API)
-```bash
-PID=$(curl -s -X POST "$GIGAFLOW_BACKEND_URL/projects/" -H "Authorization: Bearer $GIGAFLOW_API_KEY" \
-  -H 'Content-Type: application/json' -d '{"name":"my-weave-project"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["project_id"])')
+## Connect
 
-# upload your custom transform first, then:
-curl -X POST "$GIGAFLOW_BACKEND_URL/datasources/" -H "Authorization: Bearer $GIGAFLOW_API_KEY" \
-  -H 'Content-Type: application/json' -d "{
-    \"project_id\": \"$PID\",
-    \"name\": \"my-weave\",
-    \"source_type\": \"wb_weave\",
-    \"connection_url\": \"https://trace.wandb.ai\",
-    \"source_table\": \"<entity>/<project>\",
-    \"api_key\": \"<WANDB_API_KEY>\"
-  }"
+Run the setup wizard. The first time, it signs you in with your waitlist email
+(same as `gigaflow login`), then walks you through the connection above:
+
+```bash
+gigaflow setup
 ```
 
-## Transform
-Weave calls normalize to nested dicts with `attributes.*`, `inputs`, `output`,
-`op_name`, `display_name`. Author a transform mapping these to primitives (template:
-`gigaflow/transforms/arize_phoenix.yml`). Upload via `PUT /projects/$PID/transform`.
+Pick **W&B Weave** when prompted and enter your `entity/project` and `WANDB_API_KEY`.
+The wizard creates a GigaFlow project, applies a transform, registers the
+datasource, and runs the first sync — you never set an API key or backend URL by
+hand.
 
-## Run
+## Transform
+
+Weave calls normalize to nested dicts with `attributes.*`, `inputs`, `output`,
+`op_name`, `display_name`. The bundled `wb_weave.yml` is a **template** — verify
+the classification preview the wizard shows, and if your op names don't match,
+copy the template, adjust the filter rules, and give the wizard the path to your
+edited file when it asks for a transform.
+
+## After the first sync
+
 ```bash
-gigaflow sync
+gigaflow sync                                    # re-pull new traces anytime
 gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 gigaflow inspect <trace_id>
 ```

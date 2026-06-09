@@ -3,6 +3,13 @@
 Skip the third-party platform entirely: point your app's OpenTelemetry exporter at
 GigaFlow's OTLP receiver. No datasource/`sync` — spans arrive in real time.
 
+> **Advanced path.** Unlike the vendor guides, this one isn't covered by the
+> `gigaflow setup` wizard — there's no CLI command yet to create a project and mint
+> an OTLP token, so the one-time setup below uses the GigaFlow REST API directly and
+> needs a GigaFlow API key. If you just want to connect a tracing platform, use one
+> of the vendor guides instead — those are `gigaflow login` + `gigaflow setup`, no
+> API keys.
+
 ## Endpoint
 - **HTTP:** `POST https://api.gigaflow.io/v1/traces` (accepts `application/json`
   and `application/x-protobuf`). Logs: `POST .../v1/logs`.
