@@ -356,3 +356,52 @@ def test_is_otlp_port_heuristic():
     assert setup_mod._is_otlp_port("4318") is True
     assert setup_mod._is_otlp_port("5432") is False
     assert setup_mod._is_otlp_port("") is False
+
+
+def test_retry_loop_proceeds_when_ok(monkeypatch):
+    calls = {"n": 0}
+    def fake_preflight(*a, **k):
+        calls["n"] += 1
+        return {"ok": True, "kind": "ok", "detail": ""}
+    monkeypatch.setattr(setup_mod, "preflight", fake_preflight)
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, conn2 = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "ok" and calls["n"] == 1
+
+
+def test_retry_loop_retries_then_ok(monkeypatch):
+    results = iter([
+        {"ok": False, "kind": "conn_refused", "detail": "x"},
+        {"ok": True, "kind": "ok", "detail": ""},
+    ])
+    monkeypatch.setattr(setup_mod, "preflight", lambda *a, **k: next(results))
+    _install_prompts(monkeypatch, ["r"])  # choose retry once
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, _ = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "ok"
+
+
+def test_retry_loop_save_and_quit(monkeypatch):
+    monkeypatch.setattr(setup_mod, "preflight",
+                        lambda *a, **k: {"ok": False, "kind": "host_unreachable", "detail": "x"})
+    _install_prompts(monkeypatch, ["q"])  # save & quit
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, _ = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "save_and_quit"
+
+
+def test_retry_loop_edit_recollects(monkeypatch):
+    results = iter([
+        {"ok": False, "kind": "wrong_db", "detail": "x"},
+        {"ok": True, "kind": "ok", "detail": ""},
+    ])
+    monkeypatch.setattr(setup_mod, "preflight", lambda *a, **k: next(results))
+    _install_prompts(monkeypatch, ["e"])  # edit → recollect, then loop re-tests → ok
+    recollected = {"connection_url": "postgresql://u:p2@h2:5432/d2", "source_table": "spans", "api_key": None}
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, conn2 = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: recollected)
+    assert outcome == "ok" and conn2["connection_url"] == recollected["connection_url"]
