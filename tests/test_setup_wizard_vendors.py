@@ -315,3 +315,44 @@ def test_every_vendor_has_desc_and_docs_url():
     for v in _setup.VENDORS:
         assert v.desc and isinstance(v.desc, str)
         assert v.docs_url.startswith("https://docs.gigaflow.io/sources/")
+
+
+def test_preflight_returns_parsed_result(monkeypatch):
+    captured = {}
+    def fake_api(base_url, method, path, body=None, **kw):
+        captured["path"] = path
+        captured["body"] = body
+        return (200, {"ok": False, "kind": "host_unreachable", "detail": "[Errno -2]", "latency_ms": 12})
+    monkeypatch.setattr(setup_mod, "api", fake_api)
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix",
+                            "postgresql://u:p@h:5432/d", "spans", None)
+    assert r == {"ok": False, "kind": "host_unreachable", "detail": "[Errno -2]"}
+    assert captured["path"] == "/datasources/test"
+    assert captured["body"]["connection_url"] == "postgresql://u:p@h:5432/d"
+    assert captured["body"]["project_id"] == "PID"
+
+
+def test_preflight_404_degrades_to_skipped(monkeypatch):
+    monkeypatch.setattr(setup_mod, "api", lambda *a, **k: (404, {"detail": "Not Found"}))
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix", "x", "spans", None)
+    assert r["ok"] is True and r["kind"] == "skipped"
+
+
+def test_preflight_connection_error_degrades(monkeypatch):
+    monkeypatch.setattr(setup_mod, "api", lambda *a, **k: (None, {}))
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix", "x", "spans", None)
+    assert r["ok"] is True and r["kind"] == "skipped"
+
+
+def test_remediation_covers_every_kind():
+    for kind in ("host_unreachable", "conn_refused", "auth_failed",
+                 "wrong_db", "table_missing", "timeout", "unknown"):
+        assert kind in setup_mod._REMEDIATION
+        assert setup_mod._REMEDIATION[kind].strip()
+
+
+def test_is_otlp_port_heuristic():
+    assert setup_mod._is_otlp_port("4317") is True
+    assert setup_mod._is_otlp_port("4318") is True
+    assert setup_mod._is_otlp_port("5432") is False
+    assert setup_mod._is_otlp_port("") is False

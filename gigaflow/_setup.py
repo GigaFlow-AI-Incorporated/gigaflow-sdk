@@ -197,6 +197,61 @@ def _resolve_key(api_key: str | None) -> str | None:
     return api_key if api_key is not None else _config.get("api_key")
 
 
+_REMEDIATION = {
+    "host_unreachable": (
+        "The GigaFlow backend can't resolve this host. If the database is on your "
+        "machine it is NOT reachable from the hosted backend — expose it publicly "
+        "(or allow-list GigaFlow's egress IPs). 'host.docker.internal' / 'localhost' "
+        "only work against a backend running on this same machine."
+    ),
+    "conn_refused": (
+        "Reached the host but nothing is listening on that port. Check the port and "
+        "that the database accepts remote TCP connections (Postgres listen_addresses / "
+        "firewall / security group)."
+    ),
+    "auth_failed": "Authentication failed — check the user and password.",
+    "wrong_db": "That database name doesn't exist on the server — check the DB name.",
+    "table_missing": (
+        "Connected and authenticated, but the source table wasn't found — check the "
+        "table name (Arize Phoenix uses 'spans')."
+    ),
+    "timeout": (
+        "The connection timed out. The host may be firewalled from the GigaFlow "
+        "backend, or behind a VPC without a public route."
+    ),
+    "unknown": "Couldn't connect. See the detail above and verify each field.",
+}
+
+_OTLP_PORTS = {"4317", "4318"}
+
+
+def _is_otlp_port(port: str) -> bool:
+    return (port or "").strip() in _OTLP_PORTS
+
+
+def preflight(base_url, project_id, source_type, connection_url, source_table, api_key) -> dict:
+    """Ask the backend to healthcheck a prospective connection.
+
+    Returns ``{ok, kind, detail}``. Degrades to ``{ok: True, kind: "skipped"}``
+    when the endpoint is missing (404, older backend) or unreachable, so setup
+    never hard-blocks on the preflight itself.
+    """
+    body = {
+        "project_id": project_id,
+        "source_type": source_type,
+        "connection_url": connection_url,
+        "source_table": source_table,
+    }
+    if api_key:
+        body["api_key"] = api_key
+    status, resp = api(base_url, "POST", "/datasources/test", body, api_key=_resolve_key(api_key))
+    if status == 200 and isinstance(resp, dict):
+        return {"ok": bool(resp.get("ok")), "kind": resp.get("kind", "unknown"),
+                "detail": resp.get("detail", "")}
+    # Missing endpoint / unreachable / unexpected → don't block setup.
+    return {"ok": True, "kind": "skipped", "detail": ""}
+
+
 def check_backend(base_url: str, api_key: str | None = None) -> bool:
     status, resp = api(base_url, "GET", "/health", api_key=_resolve_key(api_key))
     if status is None:
