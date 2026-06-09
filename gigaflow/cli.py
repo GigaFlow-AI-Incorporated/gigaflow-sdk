@@ -2,6 +2,7 @@
 gigaflow — CLI entry point.
 
 Commands:
+  gigaflow ingest <trace.json>       Analyze a local OTel trace export and get a Flow viewer link
   gigaflow setup                     Configure GigaFlow with a tracing datasource (Arize, Braintrust, Logfire, MLflow, W&B Weave)
   gigaflow sync                      Re-sync traces from the configured datasource
   gigaflow ui                        Open the traces dashboard in the browser
@@ -30,6 +31,7 @@ from gigaflow.commands import (
 from gigaflow.commands import (
     compute,
     config,
+    ingest,
     inspect,
     projects,
     query,
@@ -62,6 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
+  gigaflow ingest trace.json
   gigaflow setup
   gigaflow sync
   gigaflow traces
@@ -110,6 +113,7 @@ examples:
 
     sub = parser.add_subparsers(dest="command", metavar="<command>")
     auth_cmd.register(sub)
+    ingest.register(sub)
     setup.register(sub)
     traces.register(sub)
     inspect.register(sub)
@@ -160,7 +164,7 @@ def main(argv=None):
         config_key=cfg.get("api_key"),
     )
 
-    _BACKEND_CMDS = {"traces", "spans", "supplement", "sync", "query", "projects", "compute", "ui"}
+    _BACKEND_CMDS = {"traces", "spans", "supplement", "sync", "query", "projects", "compute", "ui", "ingest"}
     if args.api_key is None and getattr(args, "command", None) in _BACKEND_CMDS:
         # To stderr, not stdout: a stdout hint would corrupt machine-readable
         # output such as `gigaflow query --json`.

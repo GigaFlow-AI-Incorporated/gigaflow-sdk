@@ -58,6 +58,20 @@ For repeatable or CI setups, see the [gigaflow.env reference](https://docs.gigaf
 
 ---
 
+## Try it in one command
+
+Already have an exported OTel trace (OTLP/JSON or a flat span array)? No vendor
+account or datasource needed — upload it, get a Flow analysis link:
+
+```bash
+gigaflow login                  # sign in (hosted backend)
+gigaflow ingest trace.json      # upload → analyze → opens the Flow viewer
+```
+
+`ingest` auto-detects the exporter (Arize, Logfire, …); pass `--exporter` to
+override, `--label` to name the trace, `--no-wait` to skip waiting for the
+analysis, and `-` to read from stdin.
+
 ## The end-to-end flow
 
 ```bash
@@ -110,6 +124,7 @@ custom transform is needed:
 
 | Command | What it does |
 |---|---|
+| `gigaflow ingest <trace.json>` | Upload a local OTel trace export, run Flow analysis, get a viewer link (`-` reads stdin) |
 | `gigaflow setup` | First-run wizard (all five vendors): pick vendor, enter connection, name project, upload transform, sync, preview |
 | `gigaflow sync` | Pull traces from the configured datasource (append-only) |
 | `gigaflow traces` | List traces (auto-syncs first) |
