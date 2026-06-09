@@ -484,6 +484,7 @@ def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     datasource_id = register_datasource(
         base_url, project_id, conn["connection_url"], conn["source_table"],
         api_key=conn["api_key"], source_type=vendor.key, name=vendor.key,
+        gigaflow_key=api_key,
     )
     if not datasource_id:
         return None

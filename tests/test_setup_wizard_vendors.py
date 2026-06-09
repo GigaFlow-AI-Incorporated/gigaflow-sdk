@@ -257,6 +257,27 @@ def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
     assert cfg["datasource_id"] == MOCK_DATASOURCE_ID
 
 
+def test_wizard_register_datasource_sends_gigaflow_bearer(installed_cli, mock_server, clean_env):
+    """Regression: the wizard must authenticate the POST /datasources/ call with the
+    Step-1 GigaFlow key. During a fresh setup config.json isn't saved yet, so if the
+    wizard relies on the saved-key fallback the registration goes out unauthenticated
+    and 401s against the hosted backend. The vendor key travels in the body, not the
+    Authorization header.
+    """
+    from conftest import _MockAPIHandler  # noqa: E402
+
+    _MockAPIHandler.last_datasource_auth_header = None
+    env = dict(clean_env)
+    env["GIGAFLOW_API_KEY"] = "test-key"
+    stdin = b"\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
+    assert result.returncode == 0, result.stderr.decode()
+    assert _MockAPIHandler.last_datasource_auth_header == "Bearer test-key"
+    # The vendor key must NOT be the backend bearer.
+    assert _MockAPIHandler.last_datasource_auth_header != "Bearer bt-secret"
+    assert _MockAPIHandler.last_datasource_api_key == "bt-secret"
+
+
 def test_logfire_wizard_end_to_end(installed_cli, mock_server, clean_env):
     """Logfire path: no identifier prompt — one fewer prompt than braintrust."""
     env = dict(clean_env)
