@@ -13,6 +13,7 @@ copyright: Copyright &copy; GigaFlow AI, Inc.
 theme:
   name: material
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - navigation.instant
@@ -38,7 +39,7 @@ theme:
 nav:
   - Home: index.md
   - The gigaflow.env file: gigaflow-env.md
-  - Connect a source:
+  - Vendor Onboarding:
       - Overview: sources/README.md
       - Arize Phoenix: sources/arize-phoenix.md
       - Braintrust: sources/braintrust.md

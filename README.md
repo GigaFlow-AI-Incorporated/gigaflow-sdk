@@ -20,19 +20,28 @@ pip install gigaflow
 
 The CLI is standard-library only — nothing else to pull in.
 
-## Configure
+## Sign in
 
-Run the setup wizard — it signs you in with your waitlist email and walks you through
-choosing your tracing tool and project:
+Run `gigaflow login` — it signs you in with your waitlist email and stores your
+credentials in `~/.gigaflow/config.json`, so you only do it once:
 
 ```bash
-gigaflow setup
+gigaflow login
 ```
 
-No API key or backend URL needed. `gigaflow login` (invoked automatically by setup)
-handles authentication; credentials are persisted to `~/.gigaflow/config.json`.
+`gigaflow setup` also signs you in automatically, so a fresh user can go straight
+to setup — no API key or backend URL needed; the hosted service
+(`https://api.gigaflow.io/api/v1`) is the default.
 
-`OPENAI_API_KEY` is still required for `gigaflow compute` (Flow analysis).
+Flow compute additionally needs an **OpenAI key** (sent only by the `compute`
+command):
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+*On the hosted service, Flow LLM calls currently run on GigaFlow's platform key;
+per-customer key billing is on the roadmap.*
 
 For repeatable or CI setups, see the [gigaflow.env reference](https://docs.gigaflow.io/gigaflow-env/).
 
@@ -64,9 +73,6 @@ gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 
 # 4. Open a trace in the browser viewer (Trace / Orchestration / Atomic / Metrics).
 gigaflow inspect <trace_id>
-
-# 5. Query results as data.
-gigaflow query "SELECT trace_id, groundedness, total_cost_usd FROM trace_metrics ORDER BY total_cost_usd DESC LIMIT 20"
 ```
 
 ## Supported tracing backends

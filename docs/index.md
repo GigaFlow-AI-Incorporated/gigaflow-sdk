@@ -16,26 +16,25 @@ drives **ingest → compute → inspection**.
 pip install gigaflow
 ```
 
-## Configure
+## Sign in
 
 ```bash
-gigaflow setup
+gigaflow login
 ```
 
-`gigaflow setup` signs you in with your waitlist email (via `gigaflow login`) and
-walks you through choosing your tracing tool and project. No API key or backend URL
-needed — the hosted service is the default. Credentials are persisted to
-`~/.gigaflow/config.json`.
+`gigaflow login` signs you in with your waitlist email and stores your credentials
+in `~/.gigaflow/config.json`, so you only do it once. `gigaflow setup` also signs
+you in automatically — no API key or backend URL needed, the hosted service is the
+default.
 
 For repeatable or CI setups, see [gigaflow.env](gigaflow-env.md).
 
-## End-to-end in five commands
+## End-to-end in three commands
 
 ```bash
 gigaflow setup                                   # pick your tracing tool, connect it, sync
 gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 gigaflow inspect <trace_id>                      # open the browser Flow viewer
-gigaflow query "SELECT trace_id, groundedness, total_cost_usd FROM trace_metrics ORDER BY total_cost_usd DESC LIMIT 20"
 ```
 
 ## Where to next
