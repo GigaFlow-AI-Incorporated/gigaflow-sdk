@@ -13,8 +13,6 @@ copyright: Copyright &copy; GigaFlow AI, Inc.
 theme:
   name: material
   features:
-    - navigation.tabs
-    - navigation.sections
     - navigation.top
     - navigation.instant
     - content.code.copy
