@@ -19,11 +19,15 @@ pip install gigaflow
 ## Configure
 
 ```bash
-export GIGAFLOW_API_KEY=<your GigaFlow API key>
+gigaflow setup
 ```
 
-`gigaflow login` (browser sign-in) or `gigaflow setup` persist these to
-`~/.gigaflow/config.json`, so the exports are optional on later runs.
+`gigaflow setup` signs you in with your waitlist email (via `gigaflow login`) and
+walks you through choosing your tracing tool and project. No API key or backend URL
+needed — the hosted service is the default. Credentials are persisted to
+`~/.gigaflow/config.json`.
+
+For repeatable or CI setups, see [gigaflow.env](gigaflow-env.md).
 
 ## End-to-end in five commands
 

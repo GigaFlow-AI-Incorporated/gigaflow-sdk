@@ -37,6 +37,7 @@ theme:
 
 nav:
   - Home: index.md
+  - The gigaflow.env file: gigaflow-env.md
   - Connect a source:
       - Overview: sources/README.md
       - Arize Phoenix: sources/arize-phoenix.md

@@ -20,26 +20,32 @@ pip install gigaflow
 
 The CLI is standard-library only — nothing else to pull in.
 
-## Configure the backend + key
+## Configure
 
-Two independent credentials:
-
-| Credential | Env var | Where it goes | Purpose |
-|---|---|---|---|
-| **GigaFlow API key** | `GIGAFLOW_API_KEY` | `Authorization: Bearer` header | Authenticates you to the GigaFlow backend. Required on any hosted backend. |
-| **OpenAI API key** | `OPENAI_API_KEY` | `compute` request body | Required by the CLI's `compute` command. *On the hosted service, Flow LLM calls currently run on GigaFlow's platform key; per-customer key billing is on the roadmap.* |
+Run the setup wizard — it signs you in with your waitlist email and walks you through
+choosing your tracing tool and project:
 
 ```bash
-export GIGAFLOW_API_KEY=<your GigaFlow API key>
-export OPENAI_API_KEY=sk-...
+gigaflow setup
 ```
+
+No API key or backend URL needed. `gigaflow login` (invoked automatically by setup)
+handles authentication; credentials are persisted to `~/.gigaflow/config.json`.
+
+`OPENAI_API_KEY` is still required for `gigaflow compute` (Flow analysis).
+
+For repeatable or CI setups, see the [gigaflow.env reference](https://docs.gigaflow.io/gigaflow-env/).
+
+**Developer / self-hosted overrides** (hosted users don't need these):
+
+| Env var | Purpose |
+|---|---|
+| `GIGAFLOW_BACKEND_URL` | Point the CLI at a non-default backend. Same as `--backend`. |
+| `GIGAFLOW_API_KEY` | Static bearer key, bypassing interactive login. Same as `--api-key`. |
 
 **Resolution order** (first set wins):
 - Backend URL: `--backend <url>` > `$GIGAFLOW_BACKEND_URL` > saved config > the hosted service (`https://api.gigaflow.io/api/v1`)
 - API key: `--api-key <key>` > `$GIGAFLOW_API_KEY` > saved config > none
-
-`gigaflow setup` also prompts for these and persists them to `~/.gigaflow/config.json`,
-so the exports are optional on later runs.
 
 ---
 
