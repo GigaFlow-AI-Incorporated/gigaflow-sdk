@@ -271,7 +271,7 @@ def do_sync(base_url: str, datasource_id: str, api_key: str | None = None) -> tu
         detail = str(resp.get("detail", ""))
         if "connect" in detail.lower() or status == 502:
             _fmt.info("Could not connect to the source database.")
-            _fmt.info("If Arize is running in Docker, try 'host.docker.internal' as the host.")
+            _fmt.info("If the source database runs in Docker, try 'host.docker.internal' as the host.")
         return None
     synced_traces = resp.get("synced_traces", 0)
     synced_spans = resp.get("synced_spans", 0)
