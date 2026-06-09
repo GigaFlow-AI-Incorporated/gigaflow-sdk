@@ -37,7 +37,7 @@ theme:
 
 nav:
   - Home: index.md
-  - The gigaflow.env file: gigaflow-env.md
+  - Reusable setup config: gigaflow-env.md
   - Vendor Onboarding:
       - Overview: sources/README.md
       - Arize Phoenix: sources/arize-phoenix.md
