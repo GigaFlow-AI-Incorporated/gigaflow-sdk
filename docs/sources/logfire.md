@@ -1,36 +1,34 @@
 # Logfire (Pydantic)
 
-GigaFlow queries Logfire's FusionFire Query API. **Bundled transform** —
-`gigaflow/transforms/logfire.yml` handles pydantic-ai/Logfire spans.
+GigaFlow queries Logfire's FusionFire Query API. A bundled transform
+(`logfire.yml`) handles pydantic-ai/Logfire spans out of the box.
 
-## Prerequisites
+## What you'll need
 - A Logfire **read token** (Logfire → project → Settings → Read tokens).
 - Your project's API base, e.g. `https://logfire-us.pydantic.dev/<org>/<project>`
   (the org segment is your Logfire org/username slug).
 
-## Connect (API)
+## Connect
+
+Run the setup wizard. The first time, it signs you in with your waitlist email
+(same as `gigaflow login`), then walks you through the connection above:
+
 ```bash
-PID=$(curl -s -X POST "$GIGAFLOW_BACKEND_URL/projects/" -H "Authorization: Bearer $GIGAFLOW_API_KEY" \
-  -H 'Content-Type: application/json' -d '{"name":"my-logfire-project"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["project_id"])')
-
-curl -X PUT "$GIGAFLOW_BACKEND_URL/projects/$PID/transform" -H "Authorization: Bearer $GIGAFLOW_API_KEY" \
-  -H 'Content-Type: text/plain' --data-binary @gigaflow/transforms/logfire.yml
-
-curl -X POST "$GIGAFLOW_BACKEND_URL/datasources/" -H "Authorization: Bearer $GIGAFLOW_API_KEY" \
-  -H 'Content-Type: application/json' -d "{
-    \"project_id\": \"$PID\",
-    \"name\": \"my-logfire\",
-    \"source_type\": \"logfire\",
-    \"connection_url\": \"https://logfire-us.pydantic.dev/<org>/<project>\",
-    \"api_key\": \"<logfire read token>\"
-  }"
+gigaflow setup
 ```
-Optional: set `service_name_filter` on the datasource to restrict sync to one
-service (Logfire is the only source that honours it).
 
-## Run
+Pick **Logfire** when prompted and paste in your API base and read token. The
+wizard creates a GigaFlow project, applies the bundled `logfire.yml` transform,
+registers the datasource, and runs the first sync — you never set an API key or
+backend URL by hand.
+
+> Optional: to restrict sync to a single service, set a service-name filter when
+> prompted (Logfire is the only source that honours it).
+
+## After the first sync
+
 ```bash
-gigaflow sync
+gigaflow sync                                    # re-pull new traces anytime
 gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 gigaflow inspect <trace_id>
 ```
