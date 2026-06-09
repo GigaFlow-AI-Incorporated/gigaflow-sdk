@@ -5,6 +5,32 @@ All notable changes to the `gigaflow` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-06-09
+
+### Fixed
+
+- **`gigaflow setup` no longer looks frozen during sync.** Step 6 now prints a
+  `Syncing…` progress line before the blocking sync request, and the sync POST
+  gets a generous 120s read timeout instead of the 30s default tuned for quick
+  calls — so a first full sync of a large dataset no longer fails with a cryptic
+  `Sync failed (None): {'error': 'The read operation timed out'}`. On a genuine
+  timeout the wizard now explains the sync may still be running on the backend
+  and to re-run `gigaflow sync`.
+
+### Changed
+
+- The "could not connect to the source database" hint is now vendor-neutral
+  (no longer Arize-specific) when the Docker host is misconfigured.
+
+## [0.4.1] - 2026-06-08
+
+### Fixed
+
+- **Datasource registration now authenticates with the GigaFlow backend key**
+  (the Step-1 key sent as `Authorization: Bearer`), not the vendor key — the
+  vendor key still travels in the request body for the backend to read the
+  upstream source.
+
 ## [0.4.0] - 2026-06-08
 
 ### Changed
