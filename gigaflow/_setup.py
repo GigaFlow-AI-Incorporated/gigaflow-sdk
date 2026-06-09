@@ -198,7 +198,7 @@ def check_backend(base_url: str, api_key: str | None = None) -> bool:
         _fmt.info("Check the URL ($GIGAFLOW_BACKEND_URL / --backend) and that the backend is running.")
         return False
     if status in (401, 403):
-        _fmt.fail("Authentication failed — set a gigaflow API key (--api-key / $GIGAFLOW_API_KEY).")
+        _fmt.fail("Authentication failed — run `gigaflow login` to sign in (or set --api-key / $GIGAFLOW_API_KEY for local dev).")
         return False
     if status != 200:
         _fmt.fail(f"Backend returned {status}: {resp}")
