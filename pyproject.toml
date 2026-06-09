@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gigaflow"
-version = "0.4.0"
+version = "0.4.1"
 description = "GigaFlow CLI — connect LLM/agent traces (Arize Phoenix, Logfire, Braintrust, MLflow, W&B Weave, or OTLP) to GigaFlow and run Flow analysis"
 readme = "README.md"
 requires-python = ">=3.10"

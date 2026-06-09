@@ -106,6 +106,33 @@ def test_register_datasource_sends_source_type_and_api_key(monkeypatch):
     assert captured["body"]["name"] == "braintrust"
 
 
+def test_register_datasource_does_not_send_vendor_key_as_backend_auth(monkeypatch):
+    """Regression: the vendor key belongs in the BODY, never as the GigaFlow
+    backend Authorization bearer. Conflating them sent the (e.g. Braintrust) key
+    as the backend bearer → 401 'Invalid credentials' during `gigaflow setup`."""
+    captured = {}
+
+    def fake_api(base_url, method, path, body=None, **kw):
+        captured["body"] = body
+        captured["auth"] = kw.get("api_key")
+        return 200, {"datasource_id": "ds-3"}
+
+    monkeypatch.setattr(setup_mod, "api", fake_api)
+    # No saved config key — isolate the resolution to the explicit args.
+    monkeypatch.setattr(setup_mod._config, "get", lambda *a, **k: None)
+    setup_mod.register_datasource(
+        "http://x/api/v1", "proj-1",
+        connection_url="https://api.braintrust.dev",
+        source_table="my-proj",
+        api_key="bt-key",            # vendor key → body
+        source_type="braintrust",
+        gigaflow_key="gf-backend-key",  # GigaFlow key → bearer
+    )
+    assert captured["body"]["api_key"] == "bt-key"      # vendor key in body
+    assert captured["auth"] == "gf-backend-key"          # backend bearer is the GigaFlow key
+    assert captured["auth"] != "bt-key"                  # and NOT the vendor key
+
+
 def test_register_datasource_arize_omits_api_key(monkeypatch):
     captured = {}
 

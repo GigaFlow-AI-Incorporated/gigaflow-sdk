@@ -233,7 +233,18 @@ def upload_transform(base_url: str, project_id: str, yaml_content: str = ARIZE_T
 
 
 def register_datasource(base_url: str, project_id: str, connection_url: str, source_table: str,
-                        api_key: str | None = None, source_type: str = "arize_phoenix", name: str | None = None) -> str | None:
+                        api_key: str | None = None, source_type: str = "arize_phoenix", name: str | None = None,
+                        gigaflow_key: str | None = None) -> str | None:
+    """Register an upstream datasource.
+
+    Two distinct credentials are in play here — do not conflate them:
+
+    * ``api_key`` is the *vendor* key (Braintrust / Logfire / W&B …) the backend
+      will use to read from the upstream source. It travels in the request BODY.
+    * ``gigaflow_key`` is the GigaFlow backend auth token (the Step-1 key). It
+      becomes the ``Authorization: Bearer`` header, exactly like every other
+      call in this module. Falls back to the saved config key when omitted.
+    """
     payload = {
         "project_id": project_id,
         "name": name or source_type,
@@ -243,7 +254,7 @@ def register_datasource(base_url: str, project_id: str, connection_url: str, sou
     }
     if api_key:
         payload["api_key"] = api_key
-    status, resp = api(base_url, "POST", "/datasources/", payload, api_key=_resolve_key(api_key))
+    status, resp = api(base_url, "POST", "/datasources/", payload, api_key=_resolve_key(gigaflow_key))
     if status != 200:
         _fmt.fail(f"Failed to register datasource ({status}): {resp}")
         return None
@@ -360,6 +371,7 @@ def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     datasource_id = register_datasource(
         base_url, project_id, conn["connection_url"], conn["source_table"],
         api_key=conn["api_key"], source_type=vendor.key, name=vendor.key,
+        gigaflow_key=api_key,
     )
     if not datasource_id:
         return None
