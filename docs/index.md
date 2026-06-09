@@ -25,7 +25,7 @@ export GIGAFLOW_API_KEY=<your GigaFlow API key>
 `gigaflow login` (browser sign-in) or `gigaflow setup` persist these to
 `~/.gigaflow/config.json`, so the exports are optional on later runs.
 
-## End-to-end in five commands
+## End-to-end in three commands
 
 ```bash
 gigaflow setup                                   # pick your tracing tool, connect it, sync
