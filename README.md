@@ -58,9 +58,6 @@ gigaflow compute "SELECT trace_id FROM trace_metrics WHERE run_id IS NULL"
 
 # 4. Open a trace in the browser viewer (Trace / Orchestration / Atomic / Metrics).
 gigaflow inspect <trace_id>
-
-# 5. Query results as data.
-gigaflow query "SELECT trace_id, groundedness, total_cost_usd FROM trace_metrics ORDER BY total_cost_usd DESC LIMIT 20"
 ```
 
 ## Supported tracing backends
