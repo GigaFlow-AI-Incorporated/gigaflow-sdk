@@ -257,6 +257,27 @@ def test_braintrust_wizard_end_to_end(installed_cli, mock_server, clean_env):
     assert cfg["datasource_id"] == MOCK_DATASOURCE_ID
 
 
+def test_wizard_register_datasource_sends_gigaflow_bearer(installed_cli, mock_server, clean_env):
+    """Regression: the wizard must authenticate the POST /datasources/ call with the
+    Step-1 GigaFlow key. During a fresh setup config.json isn't saved yet, so if the
+    wizard relies on the saved-key fallback the registration goes out unauthenticated
+    and 401s against the hosted backend. The vendor key travels in the body, not the
+    Authorization header.
+    """
+    from conftest import _MockAPIHandler  # noqa: E402
+
+    _MockAPIHandler.last_datasource_auth_header = None
+    env = dict(clean_env)
+    env["GIGAFLOW_API_KEY"] = "test-key"
+    stdin = b"\n2\n\nmy-bt-proj\nbt-secret\n\n\n"
+    result = _run(["--backend", mock_server, "setup"], env, stdin=stdin)
+    assert result.returncode == 0, result.stderr.decode()
+    assert _MockAPIHandler.last_datasource_auth_header == "Bearer test-key"
+    # The vendor key must NOT be the backend bearer.
+    assert _MockAPIHandler.last_datasource_auth_header != "Bearer bt-secret"
+    assert _MockAPIHandler.last_datasource_api_key == "bt-secret"
+
+
 def test_logfire_wizard_end_to_end(installed_cli, mock_server, clean_env):
     """Logfire path: no identifier prompt — one fewer prompt than braintrust."""
     env = dict(clean_env)
@@ -315,3 +336,93 @@ def test_every_vendor_has_desc_and_docs_url():
     for v in _setup.VENDORS:
         assert v.desc and isinstance(v.desc, str)
         assert v.docs_url.startswith("https://docs.gigaflow.io/sources/")
+
+
+def test_preflight_returns_parsed_result(monkeypatch):
+    captured = {}
+    def fake_api(base_url, method, path, body=None, **kw):
+        captured["path"] = path
+        captured["body"] = body
+        return (200, {"ok": False, "kind": "host_unreachable", "detail": "[Errno -2]", "latency_ms": 12})
+    monkeypatch.setattr(setup_mod, "api", fake_api)
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix",
+                            "postgresql://u:p@h:5432/d", "spans", None)
+    assert r == {"ok": False, "kind": "host_unreachable", "detail": "[Errno -2]"}
+    assert captured["path"] == "/datasources/test"
+    assert captured["body"]["connection_url"] == "postgresql://u:p@h:5432/d"
+    assert captured["body"]["project_id"] == "PID"
+
+
+def test_preflight_404_degrades_to_skipped(monkeypatch):
+    monkeypatch.setattr(setup_mod, "api", lambda *a, **k: (404, {"detail": "Not Found"}))
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix", "x", "spans", None)
+    assert r["ok"] is True and r["kind"] == "skipped"
+
+
+def test_preflight_connection_error_degrades(monkeypatch):
+    monkeypatch.setattr(setup_mod, "api", lambda *a, **k: (None, {}))
+    r = setup_mod.preflight("http://b/api/v1", "PID", "arize_phoenix", "x", "spans", None)
+    assert r["ok"] is True and r["kind"] == "skipped"
+
+
+def test_remediation_covers_every_kind():
+    for kind in ("host_unreachable", "conn_refused", "auth_failed",
+                 "wrong_db", "table_missing", "timeout", "unknown"):
+        assert kind in setup_mod._REMEDIATION
+        assert setup_mod._REMEDIATION[kind].strip()
+
+
+def test_is_otlp_port_heuristic():
+    assert setup_mod._is_otlp_port("4317") is True
+    assert setup_mod._is_otlp_port("4318") is True
+    assert setup_mod._is_otlp_port("5432") is False
+    assert setup_mod._is_otlp_port("") is False
+
+
+def test_retry_loop_proceeds_when_ok(monkeypatch):
+    calls = {"n": 0}
+    def fake_preflight(*a, **k):
+        calls["n"] += 1
+        return {"ok": True, "kind": "ok", "detail": ""}
+    monkeypatch.setattr(setup_mod, "preflight", fake_preflight)
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, conn2 = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "ok" and calls["n"] == 1
+
+
+def test_retry_loop_retries_then_ok(monkeypatch):
+    results = iter([
+        {"ok": False, "kind": "conn_refused", "detail": "x"},
+        {"ok": True, "kind": "ok", "detail": ""},
+    ])
+    monkeypatch.setattr(setup_mod, "preflight", lambda *a, **k: next(results))
+    _install_prompts(monkeypatch, ["r"])  # choose retry once
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, _ = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "ok"
+
+
+def test_retry_loop_save_and_quit(monkeypatch):
+    monkeypatch.setattr(setup_mod, "preflight",
+                        lambda *a, **k: {"ok": False, "kind": "host_unreachable", "detail": "x"})
+    _install_prompts(monkeypatch, ["q"])  # save & quit
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, _ = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: conn)
+    assert outcome == "save_and_quit"
+
+
+def test_retry_loop_edit_recollects(monkeypatch):
+    results = iter([
+        {"ok": False, "kind": "wrong_db", "detail": "x"},
+        {"ok": True, "kind": "ok", "detail": ""},
+    ])
+    monkeypatch.setattr(setup_mod, "preflight", lambda *a, **k: next(results))
+    _install_prompts(monkeypatch, ["e"])  # edit → recollect, then loop re-tests → ok
+    recollected = {"connection_url": "postgresql://u:p2@h2:5432/d2", "source_table": "spans", "api_key": None}
+    conn = {"connection_url": "postgresql://u:p@h:5432/d", "source_table": "spans", "api_key": None}
+    outcome, conn2 = setup_mod._connection_retry_loop(
+        "http://b/api/v1", "PID", "arize_phoenix", conn, env={}, recollect=lambda env: recollected)
+    assert outcome == "ok" and conn2["connection_url"] == recollected["connection_url"]

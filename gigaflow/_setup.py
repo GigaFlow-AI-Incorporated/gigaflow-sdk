@@ -197,6 +197,61 @@ def _resolve_key(api_key: str | None) -> str | None:
     return api_key if api_key is not None else _config.get("api_key")
 
 
+_REMEDIATION = {
+    "host_unreachable": (
+        "The GigaFlow backend can't resolve this host. If the database is on your "
+        "machine it is NOT reachable from the hosted backend — expose it publicly "
+        "(or allow-list GigaFlow's egress IPs). 'host.docker.internal' / 'localhost' "
+        "only work against a backend running on this same machine."
+    ),
+    "conn_refused": (
+        "Reached the host but nothing is listening on that port. Check the port and "
+        "that the database accepts remote TCP connections (Postgres listen_addresses / "
+        "firewall / security group)."
+    ),
+    "auth_failed": "Authentication failed — check the user and password.",
+    "wrong_db": "That database name doesn't exist on the server — check the DB name.",
+    "table_missing": (
+        "Connected and authenticated, but the source table wasn't found — check the "
+        "table name (Arize Phoenix uses 'spans')."
+    ),
+    "timeout": (
+        "The connection timed out. The host may be firewalled from the GigaFlow "
+        "backend, or behind a VPC without a public route."
+    ),
+    "unknown": "Couldn't connect. See the detail above and verify each field.",
+}
+
+_OTLP_PORTS = {"4317", "4318"}
+
+
+def _is_otlp_port(port: str) -> bool:
+    return (port or "").strip() in _OTLP_PORTS
+
+
+def preflight(base_url, project_id, source_type, connection_url, source_table, api_key) -> dict:
+    """Ask the backend to healthcheck a prospective connection.
+
+    Returns ``{ok, kind, detail}``. Degrades to ``{ok: True, kind: "skipped"}``
+    when the endpoint is missing (404, older backend) or unreachable, so setup
+    never hard-blocks on the preflight itself.
+    """
+    body = {
+        "project_id": project_id,
+        "source_type": source_type,
+        "connection_url": connection_url,
+        "source_table": source_table,
+    }
+    if api_key:
+        body["api_key"] = api_key
+    status, resp = api(base_url, "POST", "/datasources/test", body, api_key=_resolve_key(api_key))
+    if status == 200 and isinstance(resp, dict):
+        return {"ok": bool(resp.get("ok")), "kind": resp.get("kind", "unknown"),
+                "detail": resp.get("detail", "")}
+    # Missing endpoint / unreachable / unexpected → don't block setup.
+    return {"ok": True, "kind": "skipped", "detail": ""}
+
+
 def check_backend(base_url: str, api_key: str | None = None) -> bool:
     status, resp = api(base_url, "GET", "/health", api_key=_resolve_key(api_key))
     if status is None:
@@ -323,6 +378,39 @@ def _choose_config_source() -> dict:
     return {}
 
 
+def _connection_retry_loop(base_url, project_id, source_type, conn, env, recollect):
+    """Preflight the connection, looping on failure.
+
+    ``recollect(env) -> conn`` re-runs the vendor's connection collector (for the
+    'edit' choice). Returns ``(outcome, conn)`` where outcome is "ok" or
+    "save_and_quit". The caller creates the datasource in both cases (so save&quit
+    still persists config); only the sync is skipped on save&quit.
+    """
+    while True:
+        # CLI-side wrong-port heuristic (Postgres only): warn before the round-trip.
+        if source_type in ("arize_phoenix", "", None):
+            port = conn["connection_url"].rsplit(":", 1)[-1].split("/")[0]
+            if _is_otlp_port(port):
+                _fmt.warn(f"Port {port} looks like the OTLP port, not Postgres — "
+                          f"Arize Phoenix's Postgres usually isn't on {port}.")
+        r = preflight(base_url, project_id, source_type,
+                      conn["connection_url"], conn["source_table"], conn["api_key"])
+        if r["ok"]:
+            if r["kind"] == "ok":
+                _fmt.ok("Source connection verified")
+            return "ok", conn
+        _fmt.fail(f"Could not connect ({r['kind']}).")
+        if r.get("detail"):
+            _fmt.info(r["detail"])
+        _fmt.info(_REMEDIATION.get(r["kind"], _REMEDIATION["unknown"]))
+        choice = (_fmt.prompt("[r]etry / [e]dit connection / [q] save & quit", "r") or "r").lower()
+        if choice.startswith("q"):
+            return "save_and_quit", conn
+        if choice.startswith("e"):
+            conn = recollect(env)
+        # "r" or anything else → loop and re-test
+
+
 def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     """Interactive multi-vendor setup wizard. Returns the saved config dict on
     success, None on failure.
@@ -350,23 +438,26 @@ def run_wizard(base_url: str, api_key: str | None) -> dict | None:
 
     # Step 3: connection (vendor-specific)
     _fmt.section("Step 3: Connection")
-    _fmt.info(f"Where to find these credentials: {vendor.docs_url}")
     conn = vendor.collect(env)
 
-    # Step 4: project
+    # Step 4: project (created before preflight so the test endpoint has an owner)
     _fmt.section("Step 4: Project")
     print()
-    print("  A project is a namespace that groups your traces and evals in GigaFlow.")
-    print("  Use one project per app or environment (e.g. 'checkout-bot', 'prod').")
+    print("  GigaFlow groups your traces under a *project* (a container in GigaFlow).")
     print()
-    suggested = conn.get("vendor_project_name") or env.get("GIGAFLOW_PROJECT_NAME") or "default"
+    suggested = conn.get("vendor_project_name") or env.get("GIGAFLOW_PROJECT_NAME") or f"{vendor.key}-project"
     project_name = _fmt.prompt("GigaFlow project name", suggested)
     project_id = create_project(base_url, project_name, api_key)
     if not project_id:
         return None
 
-    # Step 5: transform (vendor built-in by default)
-    _fmt.section("Step 5: Transform")
+    # Step 5: connection preflight (interactive retry loop)
+    _fmt.section("Step 5: Connection check")
+    outcome, conn = _connection_retry_loop(
+        base_url, str(project_id), vendor.key, conn, env, recollect=vendor.collect)
+
+    # Step 6: transform (vendor built-in by default)
+    _fmt.section("Step 6: Transform")
     label = vendor.label.split("(")[0].strip()
     transform_path = _fmt.prompt(
         f"Path to transform.yml (leave blank for built-in {label} config)",
@@ -388,8 +479,8 @@ def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     if not upload_transform(base_url, project_id, yaml_content, api_key):
         return None
 
-    # Step 6: register + sync + preview
-    _fmt.section("Step 6: Register datasource & sync")
+    # Step 7: register datasource (always), then sync unless we're saving & quitting
+    _fmt.section("Step 7: Register datasource & sync")
     datasource_id = register_datasource(
         base_url, project_id, conn["connection_url"], conn["source_table"],
         api_key=conn["api_key"], source_type=vendor.key, name=vendor.key,
@@ -397,19 +488,25 @@ def run_wizard(base_url: str, api_key: str | None) -> dict | None:
     )
     if not datasource_id:
         return None
-    result = do_sync(base_url, datasource_id, api_key)
-    if result is None:
-        return None
 
-    synced_traces, _ = result
-    if synced_traces > 0:
-        ok = _preview_and_confirm(base_url, project_id, api_key)
-        if not ok:
-            _fmt.info("You can supply a custom transform and re-run:")
-            _fmt.info("  gigaflow config clear  &&  gigaflow setup")
-            _fmt.info("  (point the transform prompt at your own transform.yml)")
+    if outcome == "save_and_quit":
+        _fmt.info("Saved without syncing — fix source access, then run:  gigaflow sync")
+    else:
+        result = do_sync(base_url, datasource_id, api_key)
+        if result is None:
+            _fmt.info("Sync failed after a successful connection check — run:  gigaflow sync")
+        else:
+            synced_traces, _ = result
+            if synced_traces > 0:
+                ok = _preview_and_confirm(base_url, project_id, api_key)
+                if not ok:
+                    _fmt.info("You can supply a custom transform and re-run:")
+                    _fmt.info("  gigaflow config clear  &&  gigaflow setup")
+                    _fmt.info("  (point the transform prompt at your own transform.yml)")
 
     config: dict = {"backend_url": base_url, "project_id": project_id, "datasource_id": datasource_id}
+    if api_key:
+        config["api_key"] = api_key
     _config.save(config)
     _fmt.ok(f"Configuration saved to {_config.CONFIG_PATH}")
     return config
