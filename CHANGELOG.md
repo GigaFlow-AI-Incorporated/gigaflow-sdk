@@ -5,6 +5,32 @@ All notable changes to the `gigaflow` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-08
+
+### Changed
+
+- **`gigaflow setup` is now a guided, login-based flow.** It no longer prompts for
+  a backend URL or an API key:
+  - Step 1 asks how you want to provide configuration — enter values
+    interactively (recommended) or load a `gigaflow.env` file — with a link to the
+    new [gigaflow.env reference](https://docs.gigaflow.io/gigaflow-env/).
+  - The backend defaults to the hosted service; developers override it with
+    `--backend` / `$GIGAFLOW_BACKEND_URL` (shown as a `Using backend:` notice).
+  - Setup signs you in automatically (waitlist email login) instead of asking for
+    an API key. A dev key (`--api-key` / `$GIGAFLOW_API_KEY`) still bypasses login,
+    and `gigaflow login` / `logout` / `whoami` remain available.
+  - The project step explains what a project is and suggests a name (vendor-derived
+    where available, otherwise `default`) instead of silently using a vendor name.
+  - The vendor menu shows a short description per tracing tool and links each
+    vendor's setup docs.
+- The wizard no longer writes `api_key` to `~/.gigaflow/config.json`; the session
+  token lives in `~/.gigaflow/credentials.json`.
+
+### Added
+
+- New docs page: [The `gigaflow.env` file](https://docs.gigaflow.io/gigaflow-env/),
+  documenting every recognized configuration key.
+
 ## [0.3.1] - 2026-06-07
 
 ### Changed
