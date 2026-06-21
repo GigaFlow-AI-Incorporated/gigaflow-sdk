@@ -63,6 +63,24 @@ class TestIngest:
         assert _MockAPIHandler.last_ingest_body["exporter"] == "logfire"
         assert _MockAPIHandler.last_ingest_body["trace_label"] == "my-run"
 
+    def test_ingest_project_forwarded(self, installed_cli, mock_server, clean_env, tmp_path):
+        """--project forwards project_id so the backend classifies with that
+        project's transform config (instead of an auto-detected bundled one)."""
+        path = _write_trace(tmp_path, _OTLP_BLOB)
+        result = run(
+            ["--backend", mock_server, "ingest", path, "--no-wait", "--no-browser",
+             "--project", "11111111-1111-1111-1111-111111111111"],
+            clean_env,
+        )
+        assert result.returncode == 0, err(result)
+        assert _MockAPIHandler.last_ingest_body["project_id"] == "11111111-1111-1111-1111-111111111111"
+
+    def test_ingest_omits_project_id_by_default(self, installed_cli, mock_server, clean_env, tmp_path):
+        path = _write_trace(tmp_path, _OTLP_BLOB)
+        result = run(["--backend", mock_server, "ingest", path, "--no-wait", "--no-browser"], clean_env)
+        assert result.returncode == 0, err(result)
+        assert "project_id" not in _MockAPIHandler.last_ingest_body
+
     def test_ingest_duplicate_reuses_existing(self, installed_cli, mock_server, clean_env, tmp_path):
         path = _write_trace(tmp_path, {"_mock": "duplicate"})
         result = run(["--backend", mock_server, "ingest", path, "--no-browser"], clean_env)
