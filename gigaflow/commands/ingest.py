@@ -46,6 +46,14 @@ def register(sub) -> None:
     )
     p.add_argument("--label", default=None, help="Optional trace name shown in the dashboard")
     p.add_argument(
+        "--project",
+        default=None,
+        metavar="ID",
+        help="Ingest into an existing project and classify with ITS transform config, "
+        "instead of auto-detecting a bundled transform. Use for traces whose convention "
+        "no built-in exporter matches (e.g. a custom span.type mapping).",
+    )
+    p.add_argument(
         "--no-wait",
         action="store_true",
         help="Print the viewer link immediately instead of waiting for Flow analysis",
@@ -65,6 +73,8 @@ def _handle_ingest(args, base_url: str) -> None:
     body = {"blob": blob, "exporter": args.exporter}
     if args.label:
         body["trace_label"] = args.label
+    if args.project:
+        body["project_id"] = args.project
     status, resp = api(
         base_url, "POST", "/ingest/otel", body=body, api_key=getattr(args, "api_key", None)
     )
