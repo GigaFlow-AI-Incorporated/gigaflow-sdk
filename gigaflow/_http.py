@@ -29,6 +29,13 @@ _MAX_TRIES = 3
 _BACKOFF_BASE = 0.5  # seconds; doubled each retry: 0.5, 1.0, ...
 
 
+def ok(status: int | None) -> bool:
+    """True for any 2xx HTTP status. Successful POSTs to the backend return
+    200 OR 201 (Created) interchangeably, so callers must accept both — not
+    only 200."""
+    return status is not None and 200 <= status < 300
+
+
 def api(
     base_url: str,
     method: str,

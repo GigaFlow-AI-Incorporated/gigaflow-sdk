@@ -12,7 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from gigaflow import _fmt
-from gigaflow._http import api, auth_error_hint, unreachable_hint
+from gigaflow._http import api, auth_error_hint, ok, unreachable_hint
 
 # Longer timeout for the synchronous compute POST so the client does not bail
 # (and re-POST, spawning a duplicate run) before the hosted gateway even
@@ -51,7 +51,7 @@ def _poll_for_run(base_url, trace_id, gigaflow_key, deadline_s=300, interval_s=5
             # Auth lapsed mid-poll (e.g. login token expired) — fail fast
             # instead of polling uselessly to the deadline.
             raise RuntimeError(auth_error_hint())
-        if status == 200:
+        if ok(status):
             cols = result.get("columns", [])
             rows = result.get("rows", [])
             if rows and "run_id" in cols:
@@ -155,7 +155,7 @@ def _handle_compute(args, base_url: str) -> None:
         base_url, "POST", "/query/", {"sql": args.sql, "limit": 5000},
         api_key=gigaflow_key,
     )
-    if status != 200:
+    if not ok(status):
         if status is None:
             _fmt.fail(unreachable_hint(base_url))
         elif status in (401, 403):
@@ -269,7 +269,7 @@ def _partition_computed(
         base_url, "POST", "/query/", {"sql": sql, "limit": 5000},
         api_key=gigaflow_key,
     )
-    if status != 200:
+    if not ok(status):
         # If check fails, be conservative and compute all
         return trace_ids, []
 
@@ -299,7 +299,7 @@ def _run_one(
         base_url, "POST", f"/flow/{trace_id}", body, api_key=gigaflow_key,
         timeout=COMPUTE_TIMEOUT,
     )
-    if status != 200:
+    if not ok(status):
         if status in (502, 503, 504):
             # Gateway timed out a long synchronous compute; the backend keeps
             # going. Poll for the run instead of failing / re-POSTing.
