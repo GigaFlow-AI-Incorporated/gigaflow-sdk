@@ -25,6 +25,25 @@ def test_login_stores_credentials_on_success(monkeypatch, tmp_path):
     assert "refresh_token" not in saved
 
 
+def test_login_accepts_201_created(monkeypatch, tmp_path):
+    """The backend returns 201 Created on a successful POST /auth/login; the CLI
+    must treat any 2xx as success, not only 200."""
+    monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
+    monkeypatch.setattr(_auth, "_now", lambda: 1000)
+    monkeypatch.setattr(
+        _auth,
+        "api",
+        lambda base, method, path, body=None, **kw: (
+            201,
+            {"access_token": "AT", "email": "u@x.com", "expires_in": 3600},
+        ),
+    )
+
+    ok, info = _auth.login("https://api.gigaflow.io/api/v1", "u@x.com")
+    assert ok is True
+    assert _auth.load_credentials()["access_token"] == "AT"
+
+
 def test_login_not_on_allowlist_returns_code(monkeypatch, tmp_path):
     monkeypatch.setattr(_auth, "CREDENTIALS_PATH", tmp_path / "c.json")
     monkeypatch.setattr(

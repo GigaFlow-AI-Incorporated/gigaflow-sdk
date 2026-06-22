@@ -11,7 +11,7 @@ import os
 import time
 from pathlib import Path
 
-from gigaflow._http import api
+from gigaflow._http import api, ok
 
 CREDENTIALS_PATH = Path.home() / ".gigaflow" / "credentials.json"
 
@@ -56,7 +56,7 @@ def login(base_url: str, email: str) -> tuple[bool, dict]:
     {"error": ...} otherwise.
     """
     status, payload = api(base_url, "POST", "/auth/login", body={"email": email})
-    if status == 200 and isinstance(payload, dict) and payload.get("access_token"):
+    if ok(status) and isinstance(payload, dict) and payload.get("access_token"):
         creds = {
             "access_token": payload["access_token"],
             "email": payload.get("email", email),

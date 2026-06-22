@@ -8,7 +8,7 @@ import json
 import sys
 
 from gigaflow import _fmt
-from gigaflow._http import api, auth_error_hint, unreachable_hint
+from gigaflow._http import api, auth_error_hint, ok, unreachable_hint
 
 # ── Schema reference ──────────────────────────────────────────────────────────
 
@@ -197,7 +197,7 @@ def _handle_query(args, base_url: str) -> None:
         api_key=getattr(args, "api_key", None),
     )
 
-    if status != 200:
+    if not ok(status):
         if status is None:
             _fmt.fail(unreachable_hint(base_url))
         elif status in (401, 403):
